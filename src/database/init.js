@@ -359,6 +359,23 @@ class Database {
         }
       );
     });
+
+  /**
+   * Update user's timezone
+   */
+  async updateUserTimezone(telegramUserId, timezone) {
+    return new Promise((resolve, reject) => {
+      if (!this.db) return reject(new Error('Database not initialized'));
+      this.db.run(
+        `UPDATE users SET timezone = ?, updated_at = CURRENT_TIMESTAMP WHERE telegram_user_id = ?`,
+        [timezone, telegramUserId],
+        function (err) {
+          if (err) return reject(err);
+          resolve(true);
+        }
+      );
+    });
+  }
   }
 
   /**

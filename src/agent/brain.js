@@ -257,4 +257,41 @@ Be warm, data-backed, and human.
     }
   }}
 
+  /**
+   * Map a city name to an IANA timezone string or UTC offset fallback.
+   * This is a small curated map; falls back to null if unknown.
+   */
+  mapCityToTimezone(city) {
+    if (!city || typeof city !== 'string') return null;
+    const c = city.trim().toLowerCase();
+    const map = {
+      'nairobi': 'Africa/Nairobi',
+      'new york': 'America/New_York',
+      'los angeles': 'America/Los_Angeles',
+      'san francisco': 'America/Los_Angeles',
+      'london': 'Europe/London',
+      'paris': 'Europe/Paris',
+      'berlin': 'Europe/Berlin',
+      'singapore': 'Asia/Singapore',
+      'bangalore': 'Asia/Kolkata',
+      'mumbai': 'Asia/Kolkata',
+      'delhi': 'Asia/Kolkata',
+      'tokyo': 'Asia/Tokyo',
+      'sydney': 'Australia/Sydney',
+      'melbourne': 'Australia/Melbourne',
+      'toronto': 'America/Toronto',
+      'vancouver': 'America/Vancouver',
+      'cape town': 'Africa/Johannesburg',
+      'johannesburg': 'Africa/Johannesburg'
+    };
+
+    if (map[c]) return map[c];
+
+    // Try simple heuristics: if user provided 'City, Country' take city part
+    const parts = c.split(',').map(p => p.trim());
+    if (parts.length > 1 && map[parts[0]]) return map[parts[0]];
+
+    return null;
+  }
+
 module.exports = MyDayIntel;

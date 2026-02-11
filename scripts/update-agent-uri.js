@@ -43,9 +43,13 @@ async function updateAgentURI() {
     }
     
     // Base64 encode the manifest
-    const encodedUri = Buffer.from(manifestData).toString('base64');
+    const base64Manifest = Buffer.from(manifestData).toString('base64');
     console.log('✓ Manifest encoded to Base64');
-    console.log(`  Encoded length: ${encodedUri.length} characters`);
+    console.log(`  Encoded length: ${base64Manifest.length} characters`);
+    
+    // Create Data URI with correct prefix
+    const encodedUri = `data:application/json;base64,${base64Manifest}`;
+    console.log('✓ Data URI created with prefix');
     
     // Connect to Celo network and call setAgentURI (with chainId to skip network auto-detection)
     const chainId = process.env.CHAIN_ID ? parseInt(process.env.CHAIN_ID) : 44787;

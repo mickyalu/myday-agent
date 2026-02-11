@@ -17,6 +17,7 @@ require('dotenv').config();
 
 const TelegramBot = require('node-telegram-bot-api');
 const MyDayIntel = require('./agent/brain');
+const createSelfProtocol = require('./verifier/selfProtocol');
 const Database = require('./database/init');
 
 class MyDayBot {
@@ -26,6 +27,15 @@ class MyDayBot {
     this.bot = new TelegramBot(telegramToken, { polling: true });
     this.brain = new MyDayIntel(geminiKey);
     this.db = new Database(dbConfig);
+    
+    // Handle 409 Conflict (polling duplicate instance)
+    this.bot.on('polling_error', (error) => {
+      if (error.code === 409 || error.message?.includes('409')) {
+        console.error('⚠️ CONFLICT: Another instance of this bot is already polling.');
+        console.error('Stopping local instance...');
+        process.exit(1);
+      }
+    });
     
     // User session state for Mission Briefing flow
     this.userMissionState = {};
@@ -55,6 +65,11 @@ class MyDayBot {
   setupHandlers() {
     // Start command
     this.bot.onText(/\/start/, (msg) => this.handleStart(msg));
+
+    // Set timezone command
+    this.bot.onText(/\/settimezone (.+)/, (msg, match) => this.handleSetTimezone(msg, match[1]));
+    // Reservoir command
+    this.bot.onText(/\/reservoir/, (msg) => this.handleReservoir(msg));
 
     // Morning nudge (can be triggered by user or scheduled)
     this.bot.onText(/\/morning|GM/, (msg) => this.handleMorningNudge(msg));
@@ -90,6 +105,12 @@ class MyDayBot {
       if (!text) return;
 
       // ===== MISSION BRIEFING FLOW =====
+      // Onboarding: capture city -> timezone
+      if (flowState === 'onboarding_city') {
+        const city = text.trim();
+        await this.handleOnboardingCity(msg, city);
+        return;
+      }
       
       // Step 1: Capture energy level
       if (flowState === 'mission_briefing_energy') {
@@ -181,7 +202,15 @@ class MyDayBot {
       await this.db.waitReady();
 
       // Initialize or retrieve user
-      await this.db.getOrCreateUser(userId, userName, chatId);
+      const user = await this.db.getOrCreateUser(userId, userName, chatId);
+
+      // If timezone not set, prompt user for their city (onboarding)
+      if (!user.timezone) {
+        this.userFlowState[userId] = 'onboarding_city';
+        const cityPrompt = `Before we begin, what is your current city? (e.g., Nairobi, New York)`;
+        this.bot.sendMessage(chatId, cityPrompt);
+        return;
+      }
 
       // Show MyDay Guardian persona
       const greeting = `
@@ -207,6 +236,110 @@ Let's get started with your **Mission Briefing**!
         chatId,
         '⚠️ MyDay Intel is recalibrating. I\'ve safely recorded your progress, but I need a moment. Please try your last command again.'
       );
+    }
+  }
+
+  async handleSetTimezone(msg, tzString) {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id;
+    const tz = tzString && tzString.trim() ? tzString.trim() : null;
+    if (!tz) {
+      this.bot.sendMessage(chatId, 'Please provide a valid timezone like America/New_York');
+      return;
+    }
+    try {
+      await this.db.updateUserTimezone(userId, tz);
+      this.bot.sendMessage(chatId, `Timezone saved: ${tz}`);
+      delete this.userFlowState[userId];
+    } catch (e) {
+      console.error('Error saving timezone:', e);
+      this.bot.sendMessage(chatId, 'Sorry, could not save your timezone.');
+    }
+  }
+
+  async handleReservoir(msg) {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id;
+    try {
+      await this.db.waitReady();
+      const user = await this.db.getUserById(userId);
+      if (!user) {
+        this.bot.sendMessage(chatId, 'No account found. Start with /start');
+        return;
+      }
+
+      // Current balance (cUSD) from users.vault_balance
+      const balance = typeof user.vault_balance !== 'undefined' ? user.vault_balance : 0;
+
+      // Total Discipline Points: sum of total_staked in habit_stakes
+      const totalStaked = await new Promise((resolve) => {
+        this.db.db.get(
+          'SELECT COALESCE(SUM(total_staked),0) AS total FROM habit_stakes WHERE user_id = (SELECT id FROM users WHERE telegram_user_id = ?)',
+          [userId],
+          (err, row) => {
+            if (err) return resolve(0);
+            resolve(row && row.total ? row.total : 0);
+          }
+        );
+      });
+
+      // Next unlock date: naive implementation = tomorrow
+      const nextUnlock = new Date();
+      nextUnlock.setDate(nextUnlock.getDate() + 1);
+      const nextUnlockDate = nextUnlock.toISOString().split('T')[0];
+
+      const self = createSelfProtocol({ db: this.db, railwayUrl: process.env.RAILWAY_URL });
+      const verified = await self.isVerified(userId);
+
+      const status = verified ? 'ZK-Human ✓' : 'Unverified';
+
+      const resp = `*Reservoir Summary*
+Current Balance (cUSD): ${balance}
+Total Discipline Points: ${totalStaked}
+Next Unlock Date: ${nextUnlockDate}
+Verification Status: ${status}`;
+
+      if (!verified) {
+        const verifyLink = self.getVerificationLink(userId);
+        const keyboard = {
+          reply_markup: {
+            inline_keyboard: [
+              [
+                { text: '🛡️ Verify Humanity (SelfClaw)', url: verifyLink }
+              ]
+            ]
+          }
+        };
+        this.bot.sendMessage(chatId, resp, Object.assign({ parse_mode: 'Markdown' }, keyboard));
+      } else {
+        this.bot.sendMessage(chatId, resp, { parse_mode: 'Markdown' });
+      }
+
+    } catch (e) {
+      console.error('Error in handleReservoir:', e);
+      this.bot.sendMessage(chatId, 'Sorry, could not fetch your reservoir summary.');
+    }
+  }
+
+  async handleOnboardingCity(msg, city) {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id;
+    try {
+      const tz = this.brain.mapCityToTimezone(city);
+      if (!tz) {
+        this.bot.sendMessage(chatId, `Thanks — I couldn't map "${city}" automatically. Please reply with your IANA timezone (e.g. America/New_York) or use /settimezone Your/Timezone`);
+        return;
+      }
+
+      await this.db.updateUserTimezone(userId, tz);
+      this.bot.sendMessage(chatId, `Great — your timezone is set to ${tz}. I'll send nudges at 08:00 and 20:00 your local time.`);
+      delete this.userFlowState[userId];
+
+      // Continue to mission flow
+      await this.promptMissionEnergy(msg);
+    } catch (e) {
+      console.error('Error in handleOnboardingCity:', e);
+      this.bot.sendMessage(chatId, 'Sorry, something went wrong saving your city/timezone. Try /settimezone to set it manually.');
     }
   }
 
@@ -262,20 +395,20 @@ Reply with the number: 1, 2, 3, 4, or 5
       this.userFlowState[userId] = 'mission_briefing_goals';
 
       const missionPrompt = `
-🎯 *Mission Briefing Step 2 of 4: Set Your Missions*
+    🎯 *Mission Briefing — Your 3 Missions*
 
-What activities do you want to conquer today?
+    What are the 3 missions you are conquering today?
 
-List up to 3 missions (or just 1-2 if that's realistic).
+    List exactly 3 if possible (comma-separated or line-by-line).
 
-*Examples:*
-- Morning run
-- Deep work session
-- Meditate
-- Learn Spanish
-- Code review
+    *Examples:*
+    - Morning run
+    - Deep work session
+    - Meditate
+    - Learn Spanish
+    - Code review
 
-Reply with your missions (separated by commas or line by line):
+    Reply with your 3 missions now:
       `.trim();
 
       this.bot.sendMessage(chatId, missionPrompt, { parse_mode: 'Markdown' });
@@ -326,18 +459,18 @@ Reply with your missions (separated by commas or line by line):
       const suggestedStake = this.calculateSuggestedStake(state.energy);
 
       const stakePrompt = `
-💰 *Mission Briefing Step 3 of 4: Set Your Stake*
+    💰 *Mission Briefing Step 3 of 4: Set Your Stake*
 
-Your Missions Today:
-${missionList}
+    Your Missions Today:
+    ${missionList}
 
-Energy Level: ${state.energy}/5
+    Energy Level: ${state.energy}/5
 
-💎 *My Suggestion:* ${suggestedStake} CELO
+    💎 *My Suggestion:* ${suggestedStake} cUSD
 
-But this is YOUR day. How much CELO do you want to stake on your discipline today?
+    But this is YOUR day. How much cUSD do you want to stake on your discipline today?
 
-(You can match my suggestion or choose your own amount)
+    (You can match my suggestion or choose your own amount)
       `.trim();
 
       this.bot.sendMessage(chatId, stakePrompt, { parse_mode: 'Markdown' });
@@ -380,17 +513,17 @@ But this is YOUR day. How much CELO do you want to stake on your discipline toda
         .join('\n');
 
       const confirmPrompt = `
-✅ *Mission Briefing Step 4 of 4: Confirm Your Commitment*
+    ✅ *Mission Briefing Step 4 of 4: Confirm Your Commitment*
 
-**Your Missions:**
-${missionList}
+    **Your Missions:**
+    ${missionList}
 
-⚡ Energy: ${state.energy}/5
-💰 Stake: **${stakeAmount} CELO**
+    ⚡ Energy: ${state.energy}/5
+    💰 Stake: **${stakeAmount} cUSD**
 
-Ready to lock in your commitment?
+    Ready to lock in your commitment?
 
-Reply: **YES** or **NO**
+    Reply: **YES** or **NO**
       `.trim();
 
       this.bot.sendMessage(chatId, confirmPrompt, { parse_mode: 'Markdown' });
@@ -416,6 +549,17 @@ Reply: **YES** or **NO**
       const state = this.userMissionState[userId];
 
       // Save missions to database
+      // Before allowing a stake, ensure user is verified via SelfClaw
+      const self = createSelfProtocol({ db: this.db, railwayUrl: process.env.RAILWAY_URL });
+      const verified = await self.isVerified(userId);
+      if (!verified) {
+        const link = 'https://selfclaw.app/?agentId=7';
+        const msgText = '🛡️ Humanity Attestation Required. To keep our Tribe bot-free, please verify your identity once via SelfClaw.';
+        this.bot.sendMessage(chatId, `${msgText}\n${link}`);
+        return;
+      }
+
+      // Save missions to database
       await this.db.saveMissions(userId, state.missions, state.energy, state.stake);
       
       // Save daily summary with morning energy
@@ -426,6 +570,7 @@ Reply: **YES** or **NO**
       try {
         const VAULT = process.env.VAULT_ADDRESS || '';
         const STAKE = state.stake;
+        const RAILWAY_URL = process.env.RAILWAY_URL || 'https://myday-guardian-production.up.railway.app';
 
         // Sign a payload with agent private key to attest this intent
         const pk = process.env.PRIVATE_KEY;
@@ -451,13 +596,28 @@ Reply: **YES** or **NO**
           ? Buffer.from(JSON.stringify({ payload: payloadObj, sig: agentSig })).toString('base64url')
           : '';
 
-        // Build MiniPay deep link
-        // Format: celo://wallet/pay?address=[VAULT]&amount=[STAKE]&currency=cUSD&metadata=[meta]
-        const deepLink = `celo://wallet/pay?address=${encodeURIComponent(VAULT)}&amount=${encodeURIComponent(String(STAKE))}&currency=cUSD${meta ? '&metadata=' + encodeURIComponent(meta) : ''}`;
+        // Use Aviation Grade Redirector instead of direct celo:// link
+        // The /pay endpoint will handle the redirect (compatible with Telegram buttons)
+        // Add x402 protocol fee (0.10 cUSD)
+        const fee = 0.10;
+        const totalAmount = (Number(STAKE) + fee).toFixed(2);
+        const payButtonUrl = `${RAILWAY_URL}/pay?amount=${encodeURIComponent(String(totalAmount))}&user=${encodeURIComponent(String(userId))}${meta ? '&meta=' + encodeURIComponent(meta) : ''}&protocol=x402&fee=0.10`;
 
-        // Send deep link to user for payment
-        const payMessage = `To complete your stake, open your Celo wallet and approve the payment:\n${deepLink}`;
-        this.bot.sendMessage(chatId, payMessage);
+        // Send deep link to user via inline keyboard button (judge-ready UI)
+        const payMessage = `✅ Mission briefing locked. Tap the button below to authorize payment of ${totalAmount} cUSD (includes ${fee.toFixed(2)} cUSD protocol fee).`;
+        const inlineKeyboard = {
+          reply_markup: {
+            inline_keyboard: [
+              [
+                {
+                  text: '⚡️ WIN MY DAY: SIGN STAKE 💎',
+                  url: payButtonUrl
+                }
+              ]
+            ]
+          }
+        };
+        this.bot.sendMessage(chatId, payMessage, inlineKeyboard);
 
         // Optionally log a verification attempt record (pending until verifier confirms)
         try {
@@ -483,7 +643,7 @@ Your missions for today:
 ${missionList}
 
 ⚡ Energy Level: ${state.energy}/5
-💰 Stake: ${state.stake} CELO
+    💰 Stake: ${state.stake} cUSD
 
 **Your challenge:** Complete these missions today!
 
@@ -807,6 +967,12 @@ Rest well tonight. Tomorrow's momentum starts now. 🌙
       console.log('✅ MyDay Guardian is online');
       console.log('🤖 Bot started. Listening for messages...');
     } catch (error) {
+      // Check if error is a 409 Conflict (polling duplicate)
+      if (error.code === 409 || error.message?.includes('409')) {
+        console.error('⚠️ CONFLICT: Another instance of this bot is already running.');
+        console.error('Stopping local instance...');
+        process.exit(1);
+      }
       console.error('❌ Failed to start bot - database not ready:', error);
       process.exit(1);
     }

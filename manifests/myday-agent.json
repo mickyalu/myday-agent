@@ -1,0 +1,19 @@
+{
+  "name": "MyDay Guardian",
+  "description": "Autonomous Behavioral Finance Agent for discipline staking and yield harvesting.",
+  "image": "https://raw.githubusercontent.com/mickyalu/myday-agent/main/logo.png",
+  "skills": [
+    "behavioral_finance/habit_staking",
+    "behavioral_finance/yield_optimization",
+    "identity/humanity_attestation",
+    "social/tribal_verification"
+  ],
+  "version": "1.0.0",
+  "type": "behavioral-finance",
+  "author": "MyDay Finance",
+  "license": "MIT",
+  "services": {
+    "telegram": "https://t.me/myday_habits_bot",
+    "web": "https://myday-agent.railway.app"
+  }
+}

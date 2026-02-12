@@ -271,17 +271,13 @@ Let's get started with your **Mission Briefing**!
       // Current balance (cUSD) from users.vault_balance
       const balance = typeof user.vault_balance !== 'undefined' ? user.vault_balance : 0;
 
-      // Total Discipline Points: sum of total_staked in habit_stakes
-      const totalStaked = await new Promise((resolve) => {
-        this.db.db.get(
-          'SELECT COALESCE(SUM(total_staked),0) AS total FROM habit_stakes WHERE user_id = (SELECT id FROM users WHERE telegram_user_id = ?)',
-          [userId],
-          (err, row) => {
-            if (err) return resolve(0);
-            resolve(row && row.total ? row.total : 0);
-          }
-        );
-      });
+      // Total Discipline Points: sum derived from saved missions (Supabase)
+      let totalStaked = 0;
+      try {
+        totalStaked = await this.db.getTotalStaked(userId);
+      } catch (e) {
+        totalStaked = 0;
+      }
 
       // Next unlock date: naive implementation = tomorrow
       const nextUnlock = new Date();
@@ -555,7 +551,14 @@ Reply with the number: 1, 2, 3, 4, or 5
       if (!verified) {
         const link = 'https://selfclaw.app/?agentId=7';
         const msgText = '🛡️ Humanity Attestation Required. To keep our Tribe bot-free, please verify your identity once via SelfClaw.';
-        this.bot.sendMessage(chatId, `${msgText}\n${link}`);
+        const keyboard = {
+          reply_markup: {
+            inline_keyboard: [
+              [ { text: '🧬 PROVE HUMANITY', url: link } ]
+            ]
+          }
+        };
+        this.bot.sendMessage(chatId, msgText, keyboard);
         return;
       }
 

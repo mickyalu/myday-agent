@@ -1,6 +1,6 @@
 const express = require('express');
 const rateLimit = require('express-rate-limit');
-const ethers = require('ethers');
+const { ethers } = require('ethers');
 const { verifyMessage, id, getAddress } = ethers;
 const Database = require('../database/init');
 const bodyParser = require('body-parser');

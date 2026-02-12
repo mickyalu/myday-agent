@@ -13,15 +13,16 @@
   "author": "MyDay Finance",
   "license": "MIT",
   "services": {
-    "oasf": {
-      "name": "OASF",
+    "oaf_api": {
+      "type": "oaf",
       "endpoint": "https://myday-guardian-production.up.railway.app",
-      "protocol": "json-rpc"
+      "protocol": "https",
+      "oaf_map": true
     },
     "telegram": {
-      "name": "Telegram",
+      "type": "messaging",
       "endpoint": "https://t.me/MyDayWinBot",
-      "protocol": "messaging"
+      "protocol": "telegram"
     }
   }
 }

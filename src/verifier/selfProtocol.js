@@ -12,8 +12,11 @@ module.exports = function createSelfProtocol({ db, railwayUrl }) {
       try {
         const user = await db.getUserById(telegramUserId);
         if (!user) return false;
-        // If a `verified` column exists, honor it. Otherwise check vault_balance > 0
+        // Prefer an explicit `verified_human` flag in users table
+        if (typeof user.verified_human !== 'undefined') return !!user.verified_human;
+        // Fallback to legacy `verified` column
         if (typeof user.verified !== 'undefined') return !!user.verified;
+        // As a last resort, treat users with a vault balance as verified
         if (typeof user.vault_balance !== 'undefined' && user.vault_balance > 0) return true;
         return false;
       } catch (err) {

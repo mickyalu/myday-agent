@@ -52,7 +52,7 @@ async function updateAgentURI() {
     console.log('✓ Data URI created with prefix');
     
     // Connect to Celo network and call setAgentURI (with chainId to skip network auto-detection)
-    const chainId = process.env.CHAIN_ID ? parseInt(process.env.CHAIN_ID) : 44787;
+    const chainId = process.env.CHAIN_ID ? parseInt(process.env.CHAIN_ID) : 42220;
     const provider = new ethers.JsonRpcProvider(rpcUrl, chainId);
     const signer = new ethers.Wallet(privateKey, provider);
     

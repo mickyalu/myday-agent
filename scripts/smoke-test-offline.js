@@ -14,7 +14,7 @@ async function runTests() {
   // Test 1: Import ethers and verify v6 compatibility
   try {
     console.log('Test 1: Ethers v6 imports...');
-    const ethers = require('ethers');
+    const { ethers } = require('ethers');
     const { verifyMessage, id, getAddress, JsonRpcProvider, Wallet, Contract } = ethers;
     
     // Verify key v6 functions exist

@@ -12,6 +12,12 @@
   "url": "https://myday-guardian-production.up.railway.app",
   "schema_version": "1.0",
   "provider": { "name": "MyDay Finance" },
+  "endpoints": [
+    { "type": "web", "url": "https://myday-guardian-production.up.railway.app" },
+    { "type": "telegram", "url": "https://t.me/MyDayWinBot" },
+    { "type": "mcp", "url": "https://myday-guardian-production.up.railway.app/mcp" },
+    { "type": "agent-card", "url": "https://myday-guardian-production.up.railway.app/.well-known/agent-card.json" }
+  ],
   "supportsX402": true,
   "x402": {
     "version": "1.0",

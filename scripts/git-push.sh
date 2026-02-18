@@ -2,8 +2,8 @@
 set -e
 cd /workspaces/myday-agent
 
-echo "=== Step 1: Delete temp file ==="
-rm -f scripts/crawl-competitor.js
+echo "=== Step 1: Validate manifest JSON ==="
+node -e "const m = require('./manifests/myday-agent.json'); console.log('JSON valid'); console.log('endpoints:', JSON.stringify(m.endpoints)); console.log('services:', Object.keys(m.services)); console.log('size:', JSON.stringify(m).length, 'bytes');"
 echo "Done."
 
 echo ""
@@ -17,7 +17,7 @@ git status
 
 echo ""
 echo "=== Step 4: Commit ==="
-git commit -m "fix: Railway 502 crash + ERC-8004 registration format + Self verification flow"
+git commit -m "fix(manifest): add endpoints array (WA006) + sovereign data URI (WA040) + harden discipline-score defaults"
 
 echo ""
 echo "=== Step 5: Push to main ==="

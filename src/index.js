@@ -433,9 +433,25 @@ async function main() {
     // Discipline Score API endpoint (Behavioral Oracle) — shared handler
     const disciplineScoreHandler = async (req, res) => {
       try {
-        if (!apiDb) return res.status(503).json({ error: 'Database unavailable — degraded mode' });
         const telegramId = Number(req.params.telegram_id);
         if (!telegramId) return res.status(400).json({ error: 'invalid telegram id' });
+
+        // Return valid default JSON for new/unknown users even without DB
+        if (!apiDb) {
+          return res.json({
+            agent: 'MyDay Guardian (#7)',
+            chain: 'Celo L2 (42220)',
+            telegram_id: telegramId,
+            grit_score: 0,
+            streak: 0,
+            emotional_stability_index: 50,
+            status: 'Warning',
+            avg_morning_energy: 3,
+            avg_sunset_mood: 3,
+            total_staked_cUSD: 0,
+            note: 'Database unavailable — showing defaults'
+          });
+        }
 
         // Weekly energy and missions
         const weekly = await apiDb.getWeeklyMoodEnergyData(telegramId);

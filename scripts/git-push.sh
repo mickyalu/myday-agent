@@ -22,7 +22,7 @@ git status
 
 echo ""
 echo "=== Step 4: Commit ==="
-git commit -m "diag: decode on-chain tokenURI" --allow-empty
+git commit -m "fix: services as array + strip angle brackets — badge fix"
 
 echo ""
 echo "=== Step 5: Push to main ==="

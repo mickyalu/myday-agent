@@ -39,7 +39,7 @@
       "request": "X-PAYMENT-REQUIRED",
       "response": "X-PAYMENT"
     },
-    "flow": "Client requests gated resource -> Server returns 402 + X-PAYMENT-REQUIRED -> Client pays cUSD on Celo L2 -> Client retries with X-PAYMENT: <tx_hash> -> Server verifies on-chain -> 200 OK"
+    "flow": "Client requests gated resource -> Server returns 402 + X-PAYMENT-REQUIRED -> Client pays cUSD on Celo L2 -> Client retries with X-PAYMENT header -> Server verifies on-chain -> 200 OK"
   },
   "registrations": [
     {
@@ -49,52 +49,50 @@
     }
   ],
   "supportedTrust": ["reputation"],
-  "services": {
-    "oasf": {
+  "services": [
+    {
       "type": "oasf",
       "version": "v1",
       "url": "https://myday-guardian-production.up.railway.app/api/v1/discipline-score",
       "discovery": "https://myday-guardian-production.up.railway.app/.well-known/agent-card.json",
       "description": "Behavioral Oracle - discipline score, grit metrics, mood-energy correlation"
     },
-    "mcp": {
+    {
       "type": "mcp",
       "version": "v1",
       "url": "https://myday-guardian-production.up.railway.app/mcp",
       "transport": "streamable-http",
       "description": "MCP Server - JSON-RPC 2.0 tool interface for Claude, Cursor, and MCP-compatible agents"
     },
-    "a2a": {
+    {
       "type": "a2a",
       "version": "v1",
       "url": "https://myday-guardian-production.up.railway.app/api/v1/agent",
       "description": "Agent-to-Agent metadata and capability discovery endpoint"
     },
-    "telegram": {
+    {
       "type": "telegram",
       "url": "https://t.me/MyDayWinBot",
       "description": "Telegram bot - interactive habit coaching with morning nudges and sunset reflections"
     },
-    "evm-wallet": {
+    {
       "type": "evm-wallet",
       "version": "v1",
       "url": "eip155:42220:0x2C7CE8dc27283beFD939adC894798A52c03A9AEB",
       "description": "Agent EVM wallet on Celo L2 Mainnet"
     },
-    "web": {
+    {
       "type": "web",
       "url": "https://myday-guardian-production.up.railway.app",
       "description": "Primary web endpoint (Railway deployment)"
     },
-    "x402": {
+    {
       "type": "x402",
       "version": "v1",
       "url": "https://myday-guardian-production.up.railway.app/x402/stake",
-      "verify": "https://myday-guardian-production.up.railway.app/x402/verify",
-      "requirements": "https://myday-guardian-production.up.railway.app/x402/requirements",
       "description": "x402 HTTP 402 payment protocol - cUSD staking on Celo L2"
     }
-  },
+  ],
   "skills": [
     {
       "id": "discipline-score",

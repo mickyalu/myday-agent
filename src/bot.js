@@ -605,6 +605,9 @@ Reply with the number: 1, 2, 3, 4, or 5
       // --- Milestone 3: MiniPay deep link generation with agent signature ---
       // Prepare MiniPay deep link (celo wallet) and include agent verification signature in metadata
       try {
+        // --- Milestone 3: x402 Protocol Staking via MiniPay ---
+        // Uses real HTTP 402 payment flow: user pays cUSD on Celo L2, tx verified on-chain
+        const { buildStakeUrl } = require('./x402/middleware');
         const VAULT = process.env.VAULT_ADDRESS || '';
         const STAKE = state.stake;
         const RAILWAY_URL = process.env.RAILWAY_URL || 'https://myday-guardian-production.up.railway.app';
@@ -622,6 +625,7 @@ Reply with the number: 1, 2, 3, 4, or 5
             telegramUserId: userId,
             stake: STAKE,
             vault: VAULT,
+            protocol: 'x402',
             timestamp: new Date().toISOString()
           };
           const payloadStr = JSON.stringify(payloadObj);
@@ -633,28 +637,44 @@ Reply with the number: 1, 2, 3, 4, or 5
           ? Buffer.from(JSON.stringify({ payload: payloadObj, sig: agentSig })).toString('base64url')
           : '';
 
-        // Use Aviation Grade Redirector instead of direct celo:// link
-        // The /pay endpoint will handle the redirect (compatible with Telegram buttons)
-        // Add x402 protocol fee (0.10 cUSD)
+        // x402 protocol fee
         const fee = 0.10;
         const totalAmount = (Number(STAKE) + fee).toFixed(2);
-        const payButtonUrl = `${RAILWAY_URL}/pay?amount=${encodeURIComponent(String(totalAmount))}&user=${encodeURIComponent(String(userId))}${meta ? '&meta=' + encodeURIComponent(meta) : ''}&protocol=x402&fee=0.10`;
 
-        // Send deep link to user via inline keyboard button (judge-ready UI)
-        const payMessage = `✅ Mission briefing locked. Tap the button below to authorize payment of ${totalAmount} cUSD (includes ${fee.toFixed(2)} cUSD protocol fee).`;
+        // Build x402 staking URL (returns 402 with payment requirements for agents,
+        // or deep link info for MiniPay users)
+        const payButtonUrl = buildStakeUrl({
+          baseUrl: RAILWAY_URL,
+          amount: Number(STAKE),
+          userId,
+          meta,
+          fee
+        });
+
+        // Also build legacy deep link for MiniPay direct redirect
+        const deepLinkUrl = `${RAILWAY_URL}/pay?amount=${encodeURIComponent(String(STAKE))}&user=${encodeURIComponent(String(userId))}${meta ? '&meta=' + encodeURIComponent(meta) : ''}`;
+
+        // Send deep link to user via inline keyboard buttons (x402 judge-ready UI)
+        const payMessage = `✅ Mission briefing locked.\n\n💰 Stake: ${STAKE} cUSD + ${fee.toFixed(2)} cUSD x402 fee = *${totalAmount} cUSD*\n🔐 Protocol: x402 (HTTP 402 Payment Required)\n⛓️ Network: Celo L2 (chain 42220)\n💎 Asset: cUSD\n\nTap below to authorize payment via MiniPay:`;
         const inlineKeyboard = {
           reply_markup: {
             inline_keyboard: [
               [
                 {
-                  text: '⚡️ WIN MY DAY: SIGN STAKE 💎',
+                  text: '⚡️ WIN MY DAY: STAKE via x402 💎',
+                  url: deepLinkUrl
+                }
+              ],
+              [
+                {
+                  text: '📋 View x402 Payment Requirements',
                   url: payButtonUrl
                 }
               ]
             ]
           }
         };
-        this.bot.sendMessage(chatId, payMessage, inlineKeyboard);
+        this.bot.sendMessage(chatId, payMessage, { ...inlineKeyboard, parse_mode: 'Markdown' });
 
         // Optionally log a verification attempt record (pending until verifier confirms)
         try {

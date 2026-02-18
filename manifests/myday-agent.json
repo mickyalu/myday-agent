@@ -1,11 +1,11 @@
 {
   "name": "myday-guardian",
   "type": "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
-  "description": "Autonomous Behavioral Finance Agent for discipline staking and yield harvesting on Celo L2.",
+  "description": "Autonomous Behavioral Finance Agent for discipline staking and yield harvesting on Celo L2. Implements x402 HTTP payment protocol for on-chain staking verification.",
   "agentId": 7,
   "chains": [42220],
   "image": "https://raw.githubusercontent.com/mickyalu/myday-agent/main/src/logo.png",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "author": "MyDay Finance",
   "license": "MIT",
   "website": "https://myday-guardian-production.up.railway.app",
@@ -13,6 +13,28 @@
   "schema_version": "1.0",
   "provider": { "name": "MyDay Finance" },
   "supportsX402": true,
+  "x402": {
+    "version": "1.0",
+    "scheme": "exact",
+    "supported": true,
+    "network": "eip155:42220",
+    "asset": "0x765DE816845861e75A25fCA122bb6898B8B1282a",
+    "assetName": "cUSD",
+    "decimals": 18,
+    "fee": "0.10",
+    "feeCurrency": "cUSD",
+    "facilitator": "self-hosted",
+    "endpoints": {
+      "stake": "/x402/stake",
+      "verify": "/x402/verify",
+      "requirements": "/x402/requirements"
+    },
+    "headers": {
+      "request": "X-PAYMENT-REQUIRED",
+      "response": "X-PAYMENT"
+    },
+    "flow": "Client requests gated resource → Server returns 402 + X-PAYMENT-REQUIRED → Client pays cUSD on Celo L2 → Client retries with X-PAYMENT: <tx_hash> → Server verifies on-chain → 200 OK"
+  },
   "registrations": [
     {
       "agentId": "7",
@@ -21,27 +43,45 @@
     }
   ],
   "supportedTrust": ["reputation", "validation"],
-  "services": [
-    {
-      "name": "evm-wallet",
-      "version": "v1",
-      "endpoint": "eip155:42220:0x2C7CE8dc27283beFD939adC894798A52c03A9AEB"
-    },
-    {
-      "name": "web",
-      "endpoint": "https://myday-guardian-production.up.railway.app"
-    },
-    {
-      "name": "oasf",
+  "services": {
+    "oasf": {
       "version": "v1",
       "endpoint": "https://myday-guardian-production.up.railway.app/api/v1/discipline-score",
-      "discovery": "https://myday-guardian-production.up.railway.app/.well-known/agent-card.json"
+      "discovery": "https://myday-guardian-production.up.railway.app/.well-known/agent-card.json",
+      "description": "Behavioral Oracle — discipline score, grit metrics, mood-energy correlation"
     },
-    {
-      "name": "telegram",
-      "endpoint": "https://t.me/MyDayWinBot"
+    "mcp": {
+      "version": "v1",
+      "endpoint": "https://myday-guardian-production.up.railway.app/mcp",
+      "transport": "streamable-http",
+      "description": "MCP Server — JSON-RPC 2.0 tool interface for Claude, Cursor, and MCP-compatible agents"
+    },
+    "a2a": {
+      "version": "v1",
+      "endpoint": "https://myday-guardian-production.up.railway.app/api/v1/agent",
+      "description": "Agent-to-Agent metadata and capability discovery endpoint"
+    },
+    "telegram": {
+      "endpoint": "https://t.me/MyDayWinBot",
+      "description": "Telegram bot — interactive habit coaching with morning nudges and sunset reflections"
+    },
+    "evm-wallet": {
+      "version": "v1",
+      "endpoint": "eip155:42220:0x2C7CE8dc27283beFD939adC894798A52c03A9AEB",
+      "description": "Agent EVM wallet on Celo L2 Mainnet"
+    },
+    "web": {
+      "endpoint": "https://myday-guardian-production.up.railway.app",
+      "description": "Primary web endpoint (Railway deployment)"
+    },
+    "x402": {
+      "version": "v1",
+      "endpoint": "https://myday-guardian-production.up.railway.app/x402/stake",
+      "verify": "https://myday-guardian-production.up.railway.app/x402/verify",
+      "requirements": "https://myday-guardian-production.up.railway.app/x402/requirements",
+      "description": "x402 HTTP 402 payment protocol — cUSD staking on Celo L2"
     }
-  ],
+  },
   "skills": [
     {
       "id": "discipline-score",
@@ -61,7 +101,7 @@
     {
       "id": "habit-staking",
       "name": "Habit Staking",
-      "description": "Generates celo:// deep links for staking cUSD with x402 protocol fee."
+      "description": "x402-gated habit staking: returns HTTP 402 with X-PAYMENT-REQUIRED header for cUSD payments on Celo L2. Verifies on-chain and credits user vault."
     },
     {
       "id": "humanity-attestation",
@@ -92,19 +132,51 @@
     },
     {
       "id": "habit_staking",
-      "name": "Habit Staking via Deep Link",
-      "description": "Generates a celo:// deep link for the user to stake cUSD into the MyDay vault. Includes $0.10 x402 protocol fee.",
+      "name": "Habit Staking via x402",
+      "description": "x402-gated staking endpoint. Returns HTTP 402 with X-PAYMENT-REQUIRED header containing payment requirements. Client sends cUSD to vault on Celo L2, then retries with X-PAYMENT: <tx_hash> header.",
       "category": "behavioral_finance",
-      "endpoint": "https://myday-guardian-production.up.railway.app/pay",
+      "endpoint": "https://myday-guardian-production.up.railway.app/x402/stake",
       "method": "GET",
       "parameters": {
-        "amount": { "type": "string", "required": true, "description": "cUSD amount to stake (x402 fee of 0.10 cUSD added automatically)" },
-        "user": { "type": "string", "required": false, "description": "Telegram user ID for follow-up notification" }
+        "amount": { "type": "string", "required": true, "description": "cUSD amount to stake" },
+        "user": { "type": "string", "required": false, "description": "Telegram user ID for follow-up notification" },
+        "fee": { "type": "string", "required": false, "description": "x402 protocol fee in cUSD (default: 0.10)" }
       },
       "x402": {
+        "version": "1.0",
+        "scheme": "exact",
+        "network": "eip155:42220",
+        "asset": "0x765DE816845861e75A25fCA122bb6898B8B1282a",
         "fee": "0.10",
         "currency": "cUSD",
-        "description": "x402 protocol fee added to every staking transaction"
+        "headers": {
+          "request": "X-PAYMENT-REQUIRED",
+          "response": "X-PAYMENT"
+        }
+      }
+    },
+    {
+      "id": "x402_verify",
+      "name": "Verify x402 Payment",
+      "description": "Verifies an on-chain cUSD payment on Celo L2 against the MyDay vault using x402 protocol.",
+      "category": "payment_verification",
+      "endpoint": "https://myday-guardian-production.up.railway.app/x402/verify",
+      "method": "POST",
+      "parameters": {
+        "txHash": { "type": "string", "required": true, "description": "Transaction hash to verify on Celo L2" },
+        "expectedAmount": { "type": "number", "required": false, "description": "Expected cUSD amount (default: 0.10)" },
+        "telegramUserId": { "type": "integer", "required": false, "description": "Telegram user ID to credit" }
+      }
+    },
+    {
+      "id": "x402_requirements",
+      "name": "Get x402 Payment Requirements",
+      "description": "Returns x402 payment requirements for staking (amount, asset, network, vault address).",
+      "category": "payment_discovery",
+      "endpoint": "https://myday-guardian-production.up.railway.app/x402/requirements",
+      "method": "GET",
+      "parameters": {
+        "amount": { "type": "string", "required": false, "description": "cUSD amount (default: 0.10)" }
       }
     },
     {

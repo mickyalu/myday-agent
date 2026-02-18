@@ -4,6 +4,7 @@ const { ethers } = require('ethers');
 const { verifyMessage, id, getAddress } = ethers;
 const Database = require('../database/init');
 const bodyParser = require('body-parser');
+const { verifyPayment, buildPaymentRequirements, CELO_CUSD_ADDRESS } = require('../x402/middleware');
 
 const keccak256 = id; // Alias for compatibility
 
@@ -167,5 +168,59 @@ const apiVerifyHandler = async (req, res) => {
 };
 
 app.post('/api/verify', apiVerifyHandler);
+
+/**
+ * x402 Protocol Verification — POST /x402/verify
+ * Uses the x402 middleware's verifyPayment for clean on-chain verification.
+ * This endpoint is called by x402-aware agents and clients.
+ */
+app.post('/x402/verify', async (req, res) => {
+  try {
+    const { txHash, tx_hash, expectedAmount = 0.10, telegramUserId } = req.body || {};
+    const hash = txHash || tx_hash;
+
+    if (!hash) return res.status(400).json({ success: false, error: 'missing txHash' });
+
+    const vault = process.env.VAULT_ADDRESS || '';
+    const rpc = process.env.RPC_URL || 'https://forno.celo.org';
+
+    if (!vault) return res.status(503).json({ success: false, error: 'VAULT_ADDRESS not configured' });
+
+    const result = await verifyPayment(hash, vault, expectedAmount, rpc);
+
+    if (!result.valid) {
+      return res.status(402).json({
+        success: false,
+        protocol: 'x402',
+        error: result.error,
+        details: result
+      });
+    }
+
+    // Credit user vault if telegram ID provided
+    if (telegramUserId) {
+      try {
+        await db.waitReady();
+        await db.recordProcessedTransaction(hash, telegramUserId, result.amount, 'cUSD', { protocol: 'x402', verified: true });
+        await db.creditUserVault(telegramUserId, result.amount);
+      } catch (e) {
+        console.error('x402 verifier DB error:', e);
+      }
+    }
+
+    return res.json({
+      success: true,
+      protocol: 'x402',
+      verified: true,
+      txHash: hash,
+      amount: result.amount,
+      from: result.from,
+      blockNumber: result.blockNumber
+    });
+  } catch (err) {
+    console.error('x402 verify error:', err);
+    return res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
 
 module.exports = { app, db, apiVerifyHandler };

@@ -3,12 +3,14 @@
  * 
  * Separates blockchain logic from coaching logic (Subagent-Driven Development)
  * Responsible for:
- * - Stake transactions on Celo
+ * - Stake transactions on Celo L2
+ * - x402 payment verification
  * - Smart contract interactions
  * - Settlement validation
  */
 
 const { ethers } = require('ethers');
+const { verifyPayment, CELO_CUSD_ADDRESS, CELO_CHAIN_ID } = require('../x402/middleware');
 
 class BlockchainExecutor {
   constructor(rpcUrl, privateKey, registryAddress) {
@@ -121,9 +123,45 @@ class BlockchainExecutor {
 
     try {
       const balance = await this.provider.getBalance(this.signer.address);
-      return ethers.utils.formatEther(balance);
+      return ethers.formatEther(balance);
     } catch (error) {
       console.error('Balance fetch error:', error.message);
+      return '0';
+    }
+  }
+
+  /**
+   * Verify an x402 payment on Celo L2
+   * Uses the x402 middleware's verifyPayment for on-chain cUSD transfer verification
+   *
+   * @param {string} txHash - Transaction hash to verify
+   * @param {number} expectedAmount - Expected cUSD amount (e.g. 0.10)
+   * @returns {Promise<{valid: boolean, amount: number, from: string}>}
+   */
+  async verifyX402Payment(txHash, expectedAmount = 0.10) {
+    const vault = process.env.VAULT_ADDRESS || '';
+    if (!vault) throw new Error('VAULT_ADDRESS not configured');
+
+    return verifyPayment(txHash, vault, expectedAmount, this.rpcUrl);
+  }
+
+  /**
+   * Get cUSD balance for an address
+   * @param {string} address - Wallet address to check
+   * @returns {Promise<string>} - cUSD balance in token units
+   */
+  async getCUSDBalance(address) {
+    if (!this.provider) {
+      throw new Error('Blockchain Executor not initialized');
+    }
+
+    try {
+      const cusdABI = ['function balanceOf(address) view returns (uint256)'];
+      const cusd = new ethers.Contract(CELO_CUSD_ADDRESS, cusdABI, this.provider);
+      const balance = await cusd.balanceOf(address);
+      return ethers.formatUnits(balance, 18);
+    } catch (error) {
+      console.error('cUSD balance fetch error:', error.message);
       return '0';
     }
   }

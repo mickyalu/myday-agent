@@ -9,6 +9,8 @@ require('dotenv').config();
 const express = require('express');
 const MyDayBot = require('./bot');
 const Database = require('./database/init');
+const { x402PaymentGate, verifyPayment, buildPaymentRequirements, buildStakeUrl, CELO_CUSD_ADDRESS, CELO_CHAIN_ID } = require('./x402/middleware');
+const { mountMCPRoutes } = require('./mcp/index');
 
 // ── Aviation-Grade Process Hardening ─────────────────────────────────────────
 // Prevent any unhandled error from killing the process while we verify.
@@ -22,12 +24,181 @@ process.on('uncaughtException', (err) => {
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// ── Global CORS — CRITICAL for 8004 scanner visibility ──────────────────────
+// Every response must include Access-Control-Allow-Origin: * or the scanner
+// cannot read .well-known/*, /api/*, or /mcp endpoints.
+app.use((req, res, next) => {
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Payment, X-Payment-Required');
+  res.set('Access-Control-Expose-Headers', 'X-Payment-Required');
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
+  next();
+});
+
 // Body parsing MUST be above all routes
 app.use(express.json());
 
 /**
- * Aviation Grade Redirector: /pay endpoint
- * Converts HTTP -> celo:// deep link for mobile wallet compatibility
+ * x402 Protocol Staking Gateway: /x402/stake
+ * 
+ * Implements the real HTTP 402 Payment Required flow:
+ *   - GET without X-PAYMENT header → 402 with payment requirements
+ *   - GET with X-PAYMENT header (tx hash) → verifies on-chain, credits vault, returns 200
+ *   - Also serves a user-friendly HTML page for Telegram/browser users
+ */
+app.get('/x402/stake', async (req, res) => {
+  const amount = parseFloat(req.query.amount) || 0;
+  const user = req.query.user || null;
+  const fee = parseFloat(req.query.fee) || 0.10;
+  const meta = req.query.meta || '';
+  const vault = process.env.VAULT_ADDRESS || '';
+  const rpc = process.env.RPC_URL || 'https://forno.celo.org';
+
+  if (!vault) {
+    return res.status(503).json({ error: 'VAULT_ADDRESS not configured' });
+  }
+
+  const paymentHeader = req.headers['x-payment'] || req.headers['X-Payment'];
+
+  // ── Agent/programmatic flow: X-PAYMENT header present → verify tx ──────
+  if (paymentHeader) {
+    let txHash = paymentHeader;
+    try {
+      if (!paymentHeader.startsWith('0x')) {
+        const decoded = Buffer.from(paymentHeader, 'base64').toString('utf8');
+        const parsed = JSON.parse(decoded);
+        txHash = parsed.txHash || parsed.tx_hash || parsed.hash;
+      }
+    } catch (err) {
+      return res.status(400).json({ error: 'invalid_payment_header' });
+    }
+
+    const result = await verifyPayment(txHash, vault, fee, rpc);
+    if (!result.valid) {
+      return res.status(402).json({
+        error: 'payment_verification_failed',
+        reason: result.error,
+        details: result
+      });
+    }
+
+    // Credit user vault if we have a user ID
+    if (user) {
+      try {
+        // Lazy-init DB for this request
+        if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY) {
+          const Database = require('./database/init');
+          const db = new Database({ url: process.env.SUPABASE_URL, key: process.env.SUPABASE_SERVICE_KEY });
+          await db.waitReady();
+          await db.recordProcessedTransaction(txHash, user, result.amount, 'cUSD', { protocol: 'x402', verified: true });
+          await db.creditUserVault(user, result.amount);
+        }
+      } catch (e) {
+        console.error('x402 DB credit error:', e);
+      }
+
+      // Notify via Telegram
+      if (process.env.TELEGRAM_BOT_TOKEN) {
+        try {
+          const TelegramBot = require('node-telegram-bot-api');
+          const tbot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN);
+          const msg = `✅ *x402 Payment Verified!*\n\n💎 ${result.amount.toFixed(2)} cUSD confirmed on Celo L2\n🔗 tx: \`${txHash.slice(0, 10)}...${txHash.slice(-6)}\`\n\nYour MyDay Vault has been credited. Let's win this day!`;
+          tbot.sendMessage(Number(user), msg, { parse_mode: 'Markdown' }).catch(() => {});
+        } catch (e) { /* ignore */ }
+      }
+    }
+
+    return res.json({
+      success: true,
+      protocol: 'x402',
+      verified: true,
+      txHash,
+      amount: result.amount,
+      from: result.from,
+      blockNumber: result.blockNumber,
+      message: 'Payment verified on Celo L2. Stake credited.'
+    });
+  }
+
+  // ── No payment: return 402 with proper x402 headers ────────────────────
+  const requirements = buildPaymentRequirements({
+    payTo: vault,
+    amount: String(BigInt(Math.round(fee * 1e18))),
+    resource: req.originalUrl,
+    description: `MyDay habit stake: ${amount} cUSD (includes ${fee.toFixed(2)} cUSD x402 protocol fee)`,
+    extra: {
+      stakeAmount: amount,
+      fee,
+      userId: user || undefined
+    }
+  });
+
+  // For browser/Telegram users, also build a celo:// deep link
+  const totalAmount = amount || fee;
+  const metaParam = meta ? `&metadata=${encodeURIComponent(meta)}` : '';
+  const deepLink = `celo://wallet/pay?address=${encodeURIComponent(vault)}&amount=${encodeURIComponent(String(totalAmount))}&currency=cUSD${metaParam}`;
+
+  // Return 402 with both machine-readable headers and human-friendly body
+  res.status(402);
+  res.set('X-PAYMENT-REQUIRED', JSON.stringify(requirements));
+  res.set('Access-Control-Expose-Headers', 'X-PAYMENT-REQUIRED');
+  res.set('Content-Type', 'application/json');
+
+  return res.json({
+    error: 'payment_required',
+    protocol: 'x402',
+    message: `Stake requires ${totalAmount.toFixed(2)} cUSD payment to MyDay Vault on Celo L2.`,
+    how_to_pay: {
+      step1: `Send ${totalAmount.toFixed(2)} cUSD to ${vault} on Celo L2 (chain 42220)`,
+      step2: 'Retry this URL with header: X-PAYMENT: <your_tx_hash>',
+      deep_link: deepLink,
+      supported_wallets: ['MiniPay', 'Valora', 'MetaMask (Celo network)']
+    },
+    paymentRequirements: requirements
+  });
+});
+
+/**
+ * x402 Verify endpoint — standalone payment verification
+ * POST /x402/verify { txHash, expectedAmount? }
+ */
+app.post('/x402/verify', async (req, res) => {
+  const { txHash, tx_hash, expectedAmount = 0.10 } = req.body || {};
+  const hash = txHash || tx_hash;
+  const vault = process.env.VAULT_ADDRESS || '';
+  const rpc = process.env.RPC_URL || 'https://forno.celo.org';
+
+  if (!hash) return res.status(400).json({ error: 'missing txHash' });
+  if (!vault) return res.status(503).json({ error: 'VAULT_ADDRESS not configured' });
+
+  const result = await verifyPayment(hash, vault, expectedAmount, rpc);
+  return res.json({ protocol: 'x402', ...result });
+});
+
+/**
+ * x402 Payment Requirements — returns what's needed without gating
+ * GET /x402/requirements?amount=1.00
+ */
+app.get('/x402/requirements', (req, res) => {
+  const amount = parseFloat(req.query.amount) || 0.10;
+  const vault = process.env.VAULT_ADDRESS || '';
+
+  if (!vault) return res.status(503).json({ error: 'VAULT_ADDRESS not configured' });
+
+  const requirements = buildPaymentRequirements({
+    payTo: vault,
+    amount: String(BigInt(Math.round(amount * 1e18))),
+    resource: '/x402/stake',
+    description: `MyDay staking: ${amount.toFixed(2)} cUSD on Celo L2`
+  });
+
+  res.json({ protocol: 'x402', paymentRequirements: requirements });
+});
+
+/**
+ * Aviation Grade Redirector: /pay endpoint (legacy — preserved for backward compat)
+ * Now also returns x402 headers alongside the redirect for agent discovery
  */
 app.get('/pay', async (req, res) => {
   const amount = req.query.amount || '0';
@@ -43,9 +214,29 @@ app.get('/pay', async (req, res) => {
   const X402_FEE = 0.10;
   const totalAmount = (parseFloat(amount) || 0) + X402_FEE;
 
+  // ── If agent sends X-PAYMENT header, handle as x402 flow ──────────────
+  const paymentHeader = req.headers['x-payment'] || req.headers['X-Payment'];
+  if (paymentHeader) {
+    // Redirect to the proper x402 endpoint with the payment header forwarded
+    const redirectUrl = `/x402/stake?amount=${encodeURIComponent(String(totalAmount))}&user=${encodeURIComponent(String(user || ''))}&fee=${X402_FEE}`;
+    // Forward the X-PAYMENT header via internal redirect
+    req.url = redirectUrl;
+    return res.redirect(307, redirectUrl);
+  }
+
   // Build celo:// deep link (include metadata + x402 fee tag)
   const metaParam = meta ? `&metadata=${encodeURIComponent(meta)}` : '';
-  const deepLink = `celo://wallet/pay?address=${encodeURIComponent(vault)}&amount=${encodeURIComponent(String(totalAmount))}&currency=cUSD${metaParam}&protocol=x402&fee=${X402_FEE}`;
+  const deepLink = `celo://wallet/pay?address=${encodeURIComponent(vault)}&amount=${encodeURIComponent(String(totalAmount))}&currency=cUSD${metaParam}`;
+
+  // Set x402 payment requirements header (agents can discover pricing even on redirect)
+  const requirements = buildPaymentRequirements({
+    payTo: vault,
+    amount: String(BigInt(Math.round(X402_FEE * 1e18))),
+    resource: '/pay',
+    description: `MyDay stake of ${totalAmount.toFixed(2)} cUSD (includes ${X402_FEE} cUSD protocol fee)`
+  });
+  res.set('X-PAYMENT-REQUIRED', JSON.stringify(requirements));
+  res.set('Access-Control-Expose-Headers', 'X-PAYMENT-REQUIRED');
 
   // Ensure browser connection is closed quickly so mobile OS can open the wallet
   res.set('Connection', 'close');
@@ -58,7 +249,7 @@ app.get('/pay', async (req, res) => {
     try {
       const TelegramBot = require('node-telegram-bot-api');
       const tbot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN);
-      const followUp = 'Guardian is monitoring the Celo L2 for your transaction. I will notify you the moment your Reservoir is updated.';
+      const followUp = '🔐 x402 protocol active. Guardian is monitoring Celo L2 for your transaction. I will notify you the moment your Vault is updated.';
       // fire-and-forget
       tbot.sendMessage(Number(user), followUp).catch(err => console.error('Follow-up message failed:', err));
     } catch (err) {
@@ -75,12 +266,15 @@ app.get('/health', (req, res) => {
 });
 
 /**
+ * MCP Server — mount JSON-RPC endpoint at /mcp
+ * Allows Claude, Cursor, and other MCP clients to use MyDay tools
+ */
+mountMCPRoutes(app, { db: null }); // db injected later after init
+
+/**
  * .well-known/agent-card.json — OASF Agent Card (with CORS)
  */
 app.get('/.well-known/agent-card.json', (req, res) => {
-  res.set('Access-Control-Allow-Origin', '*');
-  res.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   res.set('Cache-Control', 'public, max-age=300');
   res.set('Content-Type', 'application/json');
   // Always reload from disk so deploys take effect immediately
@@ -92,100 +286,13 @@ app.get('/.well-known/agent-card.json', (req, res) => {
 /**
  * .well-known/mcp.json — MCP discovery endpoint (with CORS)
  */
-// CORS preflight for .well-known endpoints
-app.options('/.well-known/*', (req, res) => {
-  res.set('Access-Control-Allow-Origin', '*');
-  res.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  res.sendStatus(204);
-});
-
 app.get('/.well-known/mcp.json', (req, res) => {
-  res.set('Access-Control-Allow-Origin', '*');
-  res.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   res.set('Cache-Control', 'public, max-age=300');
   res.set('Content-Type', 'application/json');
-  res.json({
-    schema_version: "1.0",
-    name: "myday-guardian",
-    type: "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
-    description: "Autonomous Behavioral Finance Agent — discipline staking, mood-grit correlation, and yield harvesting on Celo L2.",
-    url: "https://myday-guardian-production.up.railway.app",
-    agentId: 7,
-    chains: [42220],
-    provider: { name: "MyDay Finance" },
-    supportsX402: true,
-    registrations: [{
-      agentId: "7",
-      agentRegistry: "eip155:42220:0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
-      supportedTrust: ["reputation", "validation"]
-    }],
-    supportedTrust: ["reputation", "validation"],
-    skills: [
-      { id: "discipline-score", name: "Discipline Score", description: "Returns grit score, streak, emotional stability index." },
-      { id: "behavioral-oracle", name: "Behavioral Oracle", description: "Mood-energy correlation engine with weekly trend analysis." },
-      { id: "sunset-reflection", name: "Sunset Reflection", description: "Evening self-audit capturing wins and mood delta." },
-      { id: "habit-staking", name: "Habit Staking", description: "Generates celo:// deep links for staking cUSD with x402 fee." },
-      { id: "humanity-attestation", name: "Humanity Attestation", description: "SelfClaw passport-NFC verification via Self.xyz." }
-    ],
-    services: [
-      { name: "evm-wallet", version: "v1", endpoint: "eip155:42220:0x2C7CE8dc27283beFD939adC894798A52c03A9AEB" },
-      { name: "web", endpoint: "https://myday-guardian-production.up.railway.app" },
-      { name: "oasf", version: "v1", endpoint: "https://myday-guardian-production.up.railway.app/api/v1/discipline-score", discovery: "https://myday-guardian-production.up.railway.app/.well-known/agent-card.json" },
-      { name: "telegram", endpoint: "https://t.me/MyDayWinBot" }
-    ],
-    tools: [
-      {
-        name: "get_discipline_score",
-        description: "Returns the user's grit score (0-100), streak, emotional stability index, and staking data.",
-        input_schema: {
-          type: "object",
-          properties: {
-            telegram_id: { type: "integer", description: "Telegram user ID" }
-          },
-          required: ["telegram_id"]
-        },
-        endpoint: "/api/v1/discipline-score/{telegram_id}",
-        method: "GET"
-      },
-      {
-        name: "stake_habit",
-        description: "Generates a celo:// deep link for the user to stake cUSD into the MyDay vault. Includes $0.10 x402 protocol fee.",
-        input_schema: {
-          type: "object",
-          properties: {
-            amount: { type: "string", description: "cUSD amount to stake (x402 fee of 0.10 cUSD added automatically)" },
-            user: { type: "string", description: "Telegram user ID for follow-up notification" }
-          },
-          required: ["amount"]
-        },
-        endpoint: "/pay",
-        method: "GET",
-        x402: { fee: "0.10", currency: "cUSD" }
-      },
-      {
-        name: "verify_humanity",
-        description: "Triggers a SelfClaw humanity attestation handshake.",
-        input_schema: {
-          type: "object",
-          properties: {
-            telegramId: { type: "integer", description: "Telegram user ID to verify" }
-          },
-          required: ["telegramId"]
-        },
-        endpoint: "/api/verify",
-        method: "POST"
-      },
-      {
-        name: "get_agent_metadata",
-        description: "Returns MyDay Guardian agent metadata, capabilities, and available endpoints.",
-        input_schema: { type: "object", properties: {} },
-        endpoint: "/api/v1/agent",
-        method: "GET"
-      }
-    ]
-  });
+  // Serve the canonical manifest (same as agent-card.json) — single source of truth
+  delete require.cache[require.resolve('../manifests/myday-agent.json')];
+  const manifest = require('../manifests/myday-agent.json');
+  res.json(manifest);
 });
 
 /**
@@ -265,43 +372,29 @@ app.post('/api/verify', async (req, res) => {
  * Other agents can call this to understand what data MyDay Guardian exposes
  */
 app.get('/api/v1/agent', (req, res) => {
-  res.json({
-    name: 'MyDay Guardian',
-    agentId: 7,
-    chain: 'Celo L2 (42220)',
-    description: 'Autonomous Behavioral Finance Agent — discipline staking, mood-grit correlation, and yield harvesting.',
-    endpoints: {
-      discipline_score: '/api/v1/discipline-score/:telegram_id',
-      verify: '/api/verify',
-      health: '/health'
-    },
-    data_provided: [
-      'grit_score (0-100)',
-      'emotional_stability_index (0-100)',
-      'streak (consecutive win days)',
-      'avg_morning_energy',
-      'avg_sunset_mood',
-      'total_staked_cUSD'
-    ],
-    protocols: ['x402', 'OASF'],
-    supportsX402: true,
-    x402: { fee: '0.10', currency: 'cUSD' },
-    humanity_verification: 'SelfClaw (selfclaw.ai)'
-  });
+  // Serve the canonical manifest — single source of truth
+  delete require.cache[require.resolve('../manifests/myday-agent.json')];
+  const manifest = require('../manifests/myday-agent.json');
+  res.json(manifest);
 });
 
 // ── Express starts UNCONDITIONALLY before any async init ─────────────────────
 // This ensures /health, /.well-known/* are ALWAYS reachable on Railway,
 // even if Supabase, Telegram, or Gemini fail to initialize.
 app.listen(PORT, () => {
-  console.log(`🌐 Express server running on port ${PORT}`);
-  console.log(`   /health - Health check`);
-  console.log(`   /.well-known/agent-card.json - OASF Agent Card`);
-  console.log(`   /.well-known/mcp.json - MCP Discovery`);
-  console.log(`   /api/v1/agent - Agent metadata`);
-  console.log(`   /api/v1/discipline-score/:id - Behavioral Oracle`);
-  console.log(`   /api/verify - OASF endpoint`);
-  console.log(`   /pay - Aviation Grade Redirector`);
+  console.log(`🌐 MyDay Guardian (#7) running on port ${PORT}`);
+  console.log(`   /.well-known/agent-card.json — OASF Agent Card`);
+  console.log(`   /.well-known/mcp.json — MCP Discovery`);
+  console.log(`   /mcp — MCP Server (JSON-RPC 2.0)`);
+  console.log(`   /api/v1/agent — A2A metadata`);
+  console.log(`   /api/v1/discipline-score/:id — Behavioral Oracle`);
+  console.log(`   /x402/stake — x402 Payment Gateway (HTTP 402)`);
+  console.log(`   /x402/verify — x402 Payment Verification`);
+  console.log(`   /x402/requirements — x402 Payment Requirements`);
+  console.log(`   /api/verify — SelfClaw Humanity Verification`);
+  console.log(`   /pay — MiniPay Redirector (legacy)`);
+  console.log(`   /health — Health check`);
+  console.log(`🔐 x402: ACTIVE | MCP: ACTIVE | OASF: ACTIVE | A2A: ACTIVE`);
 });
 
 async function main() {

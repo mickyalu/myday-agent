@@ -47,14 +47,12 @@ async function updateAgentURI() {
       process.exit(1);
     }
     
-    // Base64 encode the manifest
-    const base64Manifest = Buffer.from(manifestData).toString('base64');
-    console.log('✓ Manifest encoded to Base64');
-    console.log(`  Encoded length: ${base64Manifest.length} characters`);
-    
-    // Create Data URI with correct prefix
-    const encodedUri = `data:application/json;base64,${base64Manifest}`;
-    console.log('✓ Data URI created with prefix');
+    // Use raw GitHub URL as the agentURI — this is what the 8004 scanner fetches.
+    // Raw GitHub is more reliable than base64 data URIs (no gas limit issues,
+    // always available even if Railway is down).
+    const encodedUri = 'https://raw.githubusercontent.com/mickyalu/myday-agent/main/manifests/myday-agent.json';
+    console.log('✓ Using raw GitHub URL as agentURI');
+    console.log(`  URI: ${encodedUri}`);
     
     // Connect to Celo network and call setAgentURI (with chainId to skip network auto-detection)
     const chainId = process.env.CHAIN_ID ? parseInt(process.env.CHAIN_ID) : 42220;

@@ -22,6 +22,9 @@ process.on('uncaughtException', (err) => {
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Body parsing MUST be above all routes
+app.use(express.json());
+
 /**
  * Aviation Grade Redirector: /pay endpoint
  * Converts HTTP -> celo:// deep link for mobile wallet compatibility
@@ -105,13 +108,20 @@ app.get('/.well-known/mcp.json', (req, res) => {
   res.set('Content-Type', 'application/json');
   res.json({
     schema_version: "1.0",
-    name: "MyDay Guardian",
+    name: "myday-guardian",
+    type: "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
     description: "Autonomous Behavioral Finance Agent — discipline staking, mood-grit correlation, and yield harvesting on Celo L2.",
     url: "https://myday-guardian-production.up.railway.app",
     agentId: 7,
     chains: [42220],
     provider: { name: "MyDay Finance" },
     supportsX402: true,
+    registrations: [{
+      agentId: "7",
+      agentRegistry: "eip155:42220:0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
+      supportedTrust: ["reputation", "validation"]
+    }],
+    supportedTrust: ["reputation", "validation"],
     skills: [
       { id: "discipline-score", name: "Discipline Score", description: "Returns grit score, streak, emotional stability index." },
       { id: "behavioral-oracle", name: "Behavioral Oracle", description: "Mood-energy correlation engine with weekly trend analysis." },
@@ -119,19 +129,12 @@ app.get('/.well-known/mcp.json', (req, res) => {
       { id: "habit-staking", name: "Habit Staking", description: "Generates celo:// deep links for staking cUSD with x402 fee." },
       { id: "humanity-attestation", name: "Humanity Attestation", description: "SelfClaw passport-NFC verification via Self.xyz." }
     ],
-    services: {
-      oasf: {
-        type: "oasf",
-        endpoint: "https://myday-guardian-production.up.railway.app/api/v1/discipline-score",
-        discovery: "https://myday-guardian-production.up.railway.app/.well-known/agent-card.json",
-        protocol: "https"
-      },
-      telegram: {
-        type: "messaging",
-        endpoint: "https://t.me/MyDayWinBot",
-        protocol: "telegram"
-      }
-    },
+    services: [
+      { name: "evm-wallet", version: "v1", endpoint: "eip155:42220:0x2C7CE8dc27283beFD939adC894798A52c03A9AEB" },
+      { name: "web", endpoint: "https://myday-guardian-production.up.railway.app" },
+      { name: "oasf", version: "v1", endpoint: "https://myday-guardian-production.up.railway.app/api/v1/discipline-score", discovery: "https://myday-guardian-production.up.railway.app/.well-known/agent-card.json" },
+      { name: "telegram", endpoint: "https://t.me/MyDayWinBot" }
+    ],
     tools: [
       {
         name: "get_discipline_score",
@@ -205,7 +208,6 @@ app.get('/api/verify', (req, res) => {
  * Receives a callback from SelfClaw once the humanity handshake is complete.
  * Expected payload: { telegramId: number, verified: true, signature?: string }
  */
-app.use(express.json());
 app.post('/api/verify', async (req, res) => {
   try {
     const { telegramId, verified, signature } = req.body || {};
@@ -288,6 +290,20 @@ app.get('/api/v1/agent', (req, res) => {
   });
 });
 
+// ── Express starts UNCONDITIONALLY before any async init ─────────────────────
+// This ensures /health, /.well-known/* are ALWAYS reachable on Railway,
+// even if Supabase, Telegram, or Gemini fail to initialize.
+app.listen(PORT, () => {
+  console.log(`🌐 Express server running on port ${PORT}`);
+  console.log(`   /health - Health check`);
+  console.log(`   /.well-known/agent-card.json - OASF Agent Card`);
+  console.log(`   /.well-known/mcp.json - MCP Discovery`);
+  console.log(`   /api/v1/agent - Agent metadata`);
+  console.log(`   /api/v1/discipline-score/:id - Behavioral Oracle`);
+  console.log(`   /api/verify - OASF endpoint`);
+  console.log(`   /pay - Aviation Grade Redirector`);
+});
+
 async function main() {
   // Validate required environment variables (Aviation Grade)
   const requiredKeys = [
@@ -295,7 +311,6 @@ async function main() {
     'GEMINI_API_KEY',
     'SUPABASE_URL',
     'SUPABASE_SERVICE_KEY',
-    // Add more if needed
   ];
   const missing = requiredKeys.filter(key => !process.env[key]);
 
@@ -305,18 +320,6 @@ async function main() {
     }
     // Do not exit, allow degraded startup
   }
-
-  // Start Express FIRST so /health is always reachable (Railway health check)
-  app.listen(PORT, () => {
-    console.log(`🌐 Express server running on port ${PORT}`);
-    console.log(`   /pay - Aviation Grade Redirector`);
-    console.log(`   /api/verify - OASF endpoint`);
-    console.log(`   /api/v1/agent - Agent metadata (Infra Track)`);
-    console.log(`   /api/v1/discipline-score/:id - Behavioral Oracle`);
-    console.log(`   /.well-known/agent-card.json - OASF Agent Card`);
-    console.log(`   /.well-known/mcp.json - MCP Discovery`);
-    console.log(`   /health - Health check`);
-  });
 
   let apiDb = null;
   try {
@@ -421,32 +424,33 @@ async function main() {
       key: process.env.SUPABASE_SERVICE_KEY
     };
 
-    // Initialize bot (it will create its own Database instance using dbConfig)
-    const bot = new MyDayBot(
-      process.env.TELEGRAM_BOT_TOKEN,
-      process.env.GEMINI_API_KEY,
-      dbConfig
-    );
-
+    // Initialize bot (wrapped in try/catch — never crashes Express)
+    let bot = null;
     try {
+      const bot = new MyDayBot(
+        process.env.TELEGRAM_BOT_TOKEN,
+        process.env.GEMINI_API_KEY,
+        dbConfig
+      );
+
       await bot.start();
-    } catch (botErr) {
-      console.error('⚠ Bot failed to start (Express stays up):', botErr.message || botErr);
-    }
-    console.log('✓ MyDay Agent (Milestone 2) is running');
-    console.log('  - Morning Nudge: Active');
-    console.log('  - MyDay Intel: Connected');
-    console.log('  - Database: Supabase (production)');
-    console.log('  - Chain: Celo L2 Mainnet (42220)');
-    console.log('  - Telegram: Connected');
+      console.log('✓ MyDay Agent (Milestone 2) is running');
+      console.log('  - Morning Nudge: Active');
+      console.log('  - MyDay Intel: Connected');
+      console.log('  - Database: Supabase (production)');
+      console.log('  - Chain: Celo L2 Mainnet (42220)');
+      console.log('  - Telegram: Connected');
 
-    // Initialize scheduler (automated nudges)
-    try {
-      const initScheduler = require('./services/scheduler');
-      initScheduler({ db: bot.db, bot });
-      console.log('✓ Scheduler initialized');
-    } catch (e) {
-      console.error('Scheduler initialization failed:', e);
+      // Initialize scheduler (automated nudges)
+      try {
+        const initScheduler = require('./services/scheduler');
+        initScheduler({ db: bot.db, bot });
+        console.log('✓ Scheduler initialized');
+      } catch (e) {
+        console.error('Scheduler initialization failed:', e);
+      }
+    } catch (botErr) {
+      console.error('⚠ Bot failed to initialize (Express stays up):', botErr.message || botErr);
     }
 
   } catch (error) {

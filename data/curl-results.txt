@@ -1,0 +1,21 @@
+=== COMMAND 1: selfmolt agent registration (key1 - competitor) ===
+{"name":"loopuman","type":"https://eips.ethereum.org/EIPS/eip-8004#registration-v1","services":[{"name":"evm-wallet","version":"v1","endpoint":"eip155:42220:0xeF4Acd50101C2afD14c2c213b30d8D8e9a91f0d2"},{"name":"web","endpoint":"https://selfclaw.ai"}],"agentWallet":"0xeF4Acd50101C2afD14c2c213b30d8D8e9a91f0d2","description":"A verified AI agent on SelfClaw — passport-verified, sybil-resistant","registrations":[{"agentId":"17","agentRegistry":"eip155:42220:0x8004A169FB4a3325136EB29fA0ceB6D2e539a432","supportedTrust":["reputation","validation"]}],"supportedTrust":["reputation","validation"]}
+
+=== COMMAND 2: selfmolt agent registration (key2 - our agent) ===
+{"error":"Agent not found"}
+
+=== COMMAND 3: myday-guardian health ===
+{"status":"error","code":502,"message":"Application failed to respond","request_id":"8BMv7MCbSEmyhJA9acI7Nw"}
+
+=== COMMAND 4: myday-guardian agent-card.json ===
+{"status":"error","code":502,"message":"Application failed to respond","request_id":"P-icIt2HSNeR-iRZacI7Nw"}
+
+=== COMMAND 5: myday-guardian mcp.json ===
+{"status":"error","code":502,"message":"Application failed to respond","request_id":"dmPaN2oITfyti3_6acI7Nw"}
+
+=== COMMAND 6: selfclaw agent lookup (key2 - our agent) ===
+{"verified":false,"publicKey":"MCowBQYDK2VwAyEAcmSLtdlQk4+3j82t/8ac2LqLVrr20LZya5qkxe19gSM=","message":"Agent not found in registry"}
+
+=== COMMAND 7: selfclaw agent lookup (key1 - competitor) ===
+{"verified":true,"publicKey":"MCowBQYDK2VwAyEApEb6YZ8Cb0CkvLUDJcedbULhRngN2yZsZEW95j4USU4=","agentName":"loopuman","humanId":"c462e0a44f6ff85b","selfxyz":{"verified":true,"registeredAt":"2026-02-12T16:29:28.251Z"},"proof":{"available":true,"hash":"39dca57e327ba7d6295ba3d0de7f66f05fe71a8281f787115bb38e7f1d668556","endpoint":"https://selfclaw.ai/api/selfclaw/v1/agent/MCowBQYDK2VwAyEApEb6YZ8Cb0CkvLUDJcedbULhRngN2yZsZEW95j4USU4%3D/proof"},"reputation":{"hasErc8004":true,"endpoint":"https://selfclaw.ai/api/selfclaw/v1/agent/MCowBQYDK2VwAyEApEb6YZ8Cb0CkvLUDJcedbULhRngN2yZsZEW95j4USU4%3D/reputation","registryAddress":"0x8004BAa17C55a88189AE136b182e5fdA19dE9b63","erc8004TokenId":"17","attestation":null},"swarm":"https://selfclaw.ai/human/c462e0a44f6ff85b","metadata":{"erc8004Uri":"ipfs://bafkreigl6hlwuvwejdhkd2afg7g3dvdx7fezcrwpcbohg6yfl5nwcylx2y","lastUpdated":"2026-02-12T16:29:28.251Z","nationality":null,"verifiedVia":"selfxyz","erc8004Owner":"0xeF4Acd50101C2afD14c2c213b30d8D8e9a91f0d2","erc8004Minted":true,"erc8004TxHash":"0x7f82950e815b81c64c7ab8f682ec9fa0269b9ca0aa550027734863ffb2860b5f","lastOnchainSync":"2026-02-15T23:18:32.186Z","onchainAvgScore":88,"signatureVerified":false,"onchainLastUpdated":1771197512185,"onchainFeedbackCount":33,"erc8004RegistrationJson":{"name":"loopuman","type":"https://eips.ethereum.org/EIPS/eip-8004#registration-v1","services":[{"name":"evm-wallet","version":"v1","endpoint":"eip155:42220:0xeF4Acd50101C2afD14c2c213b30d8D8e9a91f0d2"},{"name":"web","endpoint":"https://selfclaw.ai"}],"agentWallet":"0xeF4Acd50101C2afD14c2c213b30d8D8e9a91f0d2","description":"A verified AI agent on SelfClaw — passport-verified, sybil-resistant","registrations":[{"agentId":"17","agentRegistry":"eip155:42220:0x8004A169FB4a3325136EB29fA0ceB6D2e539a432","supportedTrust":["reputation","validation"]}],"supportedTrust":["reputation","validation"]}},"economy":{"enabled":true,"playbook":"https://selfclaw.ai/agent-economy.md","sponsorshipSimulator":"GET /api/selfclaw/v1/sponsorship-simulator?totalSupply=1000000&liquidityTokens=100000","referencePrices":"GET /api/selfclaw/v1/prices/reference","capabilities":["deploy_token","create_liquidity_pool","swap_tokens","track_economics","invoke_skill","erc8004_identity"]}}
+=== ALL DONE ===

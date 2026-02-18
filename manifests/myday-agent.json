@@ -1,11 +1,11 @@
 {
-  "name": "MyDay Guardian",
+  "name": "myday-guardian",
+  "type": "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
   "description": "Autonomous Behavioral Finance Agent for discipline staking and yield harvesting on Celo L2.",
   "agentId": 7,
   "chains": [42220],
   "image": "https://raw.githubusercontent.com/mickyalu/myday-agent/main/src/logo.png",
   "version": "1.0.0",
-  "type": "behavioral-finance",
   "author": "MyDay Finance",
   "license": "MIT",
   "website": "https://myday-guardian-production.up.railway.app",
@@ -13,6 +13,35 @@
   "schema_version": "1.0",
   "provider": { "name": "MyDay Finance" },
   "supportsX402": true,
+  "registrations": [
+    {
+      "agentId": "7",
+      "agentRegistry": "eip155:42220:0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
+      "supportedTrust": ["reputation", "validation"]
+    }
+  ],
+  "supportedTrust": ["reputation", "validation"],
+  "services": [
+    {
+      "name": "evm-wallet",
+      "version": "v1",
+      "endpoint": "eip155:42220:0x2C7CE8dc27283beFD939adC894798A52c03A9AEB"
+    },
+    {
+      "name": "web",
+      "endpoint": "https://myday-guardian-production.up.railway.app"
+    },
+    {
+      "name": "oasf",
+      "version": "v1",
+      "endpoint": "https://myday-guardian-production.up.railway.app/api/v1/discipline-score",
+      "discovery": "https://myday-guardian-production.up.railway.app/.well-known/agent-card.json"
+    },
+    {
+      "name": "telegram",
+      "endpoint": "https://t.me/MyDayWinBot"
+    }
+  ],
   "skills": [
     {
       "id": "discipline-score",
@@ -97,18 +126,5 @@
       "endpoint": "https://myday-guardian-production.up.railway.app/api/v1/agent",
       "method": "GET"
     }
-  ],
-  "services": {
-    "oasf": {
-      "type": "oasf",
-      "endpoint": "https://myday-guardian-production.up.railway.app/api/v1/discipline-score",
-      "discovery": "https://myday-guardian-production.up.railway.app/.well-known/agent-card.json",
-      "protocol": "https"
-    },
-    "telegram": {
-      "type": "messaging",
-      "endpoint": "https://t.me/MyDayWinBot",
-      "protocol": "telegram"
-    }
-  }
+  ]
 }

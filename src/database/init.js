@@ -13,7 +13,11 @@ class Database {
     const url = config.url || process.env.SUPABASE_URL;
     const key = config.key || process.env.SUPABASE_SERVICE_KEY;
     if (!url || !key) {
-      throw new Error('Supabase URL and SERVICE_KEY must be set in env or dbConfig');
+      console.error('⚠ Supabase URL and SERVICE_KEY not set — DB in degraded mode');
+      this.client = null;
+      this.ready = false;
+      this.readyPromise = Promise.resolve(false);
+      return;
     }
 
     this.client = createClient(url, key);
@@ -38,13 +42,19 @@ class Database {
   }
 
   async waitReady() {
+    if (!this.client) return false;
     return this.readyPromise;
+  }
+
+  _guardClient() {
+    if (!this.client) throw new Error('Database unavailable — Supabase not configured');
   }
 
   /**
    * Get or create a user by Telegram ID (maps to `telegram_id` column)
    */
   async getOrCreateUser(telegramId, name = null, chatId = null) {
+    this._guardClient();
     await this.waitReady();
 
     // Try to fetch existing user

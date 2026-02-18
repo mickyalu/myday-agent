@@ -139,31 +139,24 @@ function buildVerificationLinks(publicKeySpki, sessionId, selfApp) {
   const links = {};
   const hexKey = publicKeyHex(publicKeySpki);
 
-  // A) Self.xyz deep link — opens Self app directly on mobile
-  //    Self protocol: self://verify/<selfSessionId>
-  //    Web fallback:  https://app.self.xyz/verify/<selfSessionId>
   if (selfApp && selfApp.sessionId) {
     const selfSessionId = selfApp.sessionId;
     const scope = selfApp.scope || 'selfclaw-verify';
     const endpoint = selfApp.endpoint || '';
 
-    // Deep link (opens native Self app — self:// custom scheme)
+    // PRIMARY: Self.xyz universal link — this is the OFFICIAL format
+    // The Self app intercepts this HTTPS URL on both iOS and Android
+    links.selfUniversalLink = `https://app.self.xyz/verify/${selfSessionId}`;
+    
+    // ALTERNATIVE: self:// custom scheme deep link
     links.selfDeepLink = `self://verify/${selfSessionId}`;
 
-    // Universal link (opens Self app via HTTPS universal link on iOS/Android)
-    links.selfUniversalLink = `https://app.self.xyz/verify/${selfSessionId}`;
-
-    // Android Intent URL — forces Play Store app open, no browser fallback
-    links.androidIntent = `intent://verify/${selfSessionId}#Intent;scheme=https;package=xyz.self.app;S.browser_fallback_url=${encodeURIComponent(`https://app.self.xyz/verify/${selfSessionId}`)};end`;
-
-    // Self.xyz web QR page (if Self app doesn't open, shows QR fallback)
-    links.selfWebVerify = `https://self.xyz/verify?sessionId=${selfSessionId}&scope=${encodeURIComponent(scope)}&endpoint=${encodeURIComponent(endpoint)}`;
+    // FALLBACK: SelfClaw's own verification page (shows QR for Self app to scan)
+    links.selfclawVerify = `https://selfclaw.ai/verify/${sessionId}`;
   }
 
-  // B) SelfClaw web verification page
+  // SelfClaw web verification page with params
   links.selfclawWeb = `https://selfclaw.ai/verify?agentId=${AGENT_ID}&publicKey=${encodeURIComponent(publicKeySpki)}`;
-
-  // C) SelfClaw web with session binding
   links.selfclawSession = `https://selfclaw.ai/verify?sessionId=${sessionId}&publicKey=${encodeURIComponent(publicKeySpki)}`;
 
   return links;
@@ -333,52 +326,54 @@ async function main() {
 
   const links = buildVerificationLinks(publicKeySpki, sessionId, selfApp);
 
-  banner('🔗 AVIATION GRADE DEEP LINKS — Tap to open Self app');
+  banner('🔗 VERIFICATION LINKS — Complete passport scan in Self app');
   console.log('');
-  console.log('  The agent has completed its autonomous handshake.');
-  console.log('  A human must now verify their passport via the Self app.');
-  console.log('  ─────────────────────────────────────────────────────────────');
+  console.log('  The agent handshake is complete. A human must now verify');
+  console.log('  their passport via the Self app to finish registration.');
   console.log('');
   console.log('  ╔═════════════════════════════════════════════════════════════╗');
-  console.log('  ║  ✅ OPTION A — Universal Link  (RECOMMENDED — iOS+Android) ║');
-  console.log('  ║  Open this URL on your PHONE browser.                      ║');
-  console.log('  ║  If Self app is installed, it opens the app automatically. ║');
+  console.log('  ║  ✅ OPTION 1 — Open on PHONE browser (best for iOS+Android)║');
+  console.log('  ║  Self app will intercept this link automatically.          ║');
   console.log('  ╚═════════════════════════════════════════════════════════════╝');
   console.log('');
   console.log(`  👉  ${links.selfUniversalLink}`);
   console.log('');
-  console.log('  ╔═════════════════════════════════════════════════════════════╗');
-  console.log('  ║  📱 OPTION B — Direct App Link  (self:// scheme)           ║');
-  console.log('  ║  Only works if Self app is installed. Tap on phone:        ║');
-  console.log('  ╚═════════════════════════════════════════════════════════════╝');
-  console.log('');
-  console.log(`  👉  ${links.selfDeepLink}`);
-  console.log('');
-  if (links.androidIntent) {
+  if (links.selfclawVerify) {
     console.log('  ╔═════════════════════════════════════════════════════════════╗');
-    console.log('  ║  🤖 OPTION C — Android Intent  (forces app, no browser)    ║');
-    console.log('  ║  Paste in Android Chrome address bar:                      ║');
+    console.log('  ║  📱 OPTION 2 — SelfClaw verify page (shows QR if needed)  ║');
+    console.log('  ║  Open in any browser — scan the QR with Self app.         ║');
     console.log('  ╚═════════════════════════════════════════════════════════════╝');
     console.log('');
-    console.log(`  👉  ${links.androidIntent}`);
+    console.log(`  👉  ${links.selfclawVerify}`);
+    console.log('');
+  }
+  console.log('  ╔═════════════════════════════════════════════════════════════╗');
+  console.log('  ║  🔗 OPTION 3 — SelfClaw web with session binding           ║');
+  console.log('  ╚═════════════════════════════════════════════════════════════╝');
+  console.log('');
+  console.log(`  👉  ${links.selfclawSession}`);
+  console.log('');
+  if (links.selfDeepLink) {
+    console.log('  ╔═════════════════════════════════════════════════════════════╗');
+    console.log('  ║  📲 OPTION 4 — self:// deep link (if app is installed)    ║');
+    console.log('  ╚═════════════════════════════════════════════════════════════╝');
+    console.log('');
+    console.log(`  👉  ${links.selfDeepLink}`);
     console.log('');
   }
   console.log('  ─────────────────────────────────────────────────────────────');
-  console.log(`  Session ID : ${sessionId}`);
-  console.log(`  Self Session: ${selfApp?.sessionId || 'N/A'}`);
-  console.log(`  Public Key : ${publicKeySpki}`);
-  console.log(`  Hex Key    : ${publicKeyHex(publicKeySpki)}`);
+  console.log(`  SelfClaw Session : ${sessionId}`);
+  console.log(`  Self.xyz Session : ${selfApp?.sessionId || 'N/A'}`);
+  console.log(`  Callback         : ${selfApp?.endpoint || 'N/A'}`);
+  console.log(`  Public Key       : ${publicKeySpki}`);
+  console.log(`  Hex Key          : ${publicKeyHex(publicKeySpki)}`);
   console.log('  ─────────────────────────────────────────────────────────────');
   console.log('');
 
-  // Self app session details (for debugging)
+  // Full selfApp JSON for debugging
   if (selfApp) {
-    console.log('  Self.xyz session details:');
-    console.log(`    Self Session ID : ${selfApp.sessionId}`);
-    console.log(`    Scope           : ${selfApp.scope}`);
-    console.log(`    Endpoint        : ${selfApp.endpoint}`);
-    console.log(`    Chain ID        : ${selfApp.chainID}`);
-    console.log(`    Version         : ${selfApp.version}`);
+    console.log('  Self.xyz session config (for debugging):');
+    console.log(`  ${JSON.stringify(selfApp)}`);
     console.log('');
   }
 

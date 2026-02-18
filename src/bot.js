@@ -24,7 +24,8 @@ class MyDayBot {
   constructor(telegramToken, geminiKey, dbConfig) {
     this.telegramToken = telegramToken;
     this.geminiKey = geminiKey;
-    this.bot = new TelegramBot(telegramToken, { polling: true });
+    // CRITICAL: Do NOT start polling in constructor — defer to start()
+    this.bot = new TelegramBot(telegramToken, { polling: false });
     this.brain = new MyDayIntel(geminiKey);
     this.db = new Database(dbConfig);
     
@@ -32,8 +33,10 @@ class MyDayBot {
     this.bot.on('polling_error', (error) => {
       if (error.code === 409 || error.message?.includes('409')) {
         console.error('⚠️ CONFLICT: Another instance of this bot is already polling.');
-        console.error('Stopping local instance...');
-        process.exit(1);
+        console.error('Stopping bot polling (Express stays alive)...');
+        this.bot.stopPolling();
+      } else {
+        console.error('Telegram polling error:', error.message || error);
       }
     });
     
@@ -1076,17 +1079,22 @@ Rest well tonight. Tomorrow's momentum starts now. 🌙
     try {
       // Wait for database to initialize
       await this.db.waitReady();
+    } catch (error) {
+      console.warn('⚠️ Bot started in degraded mode - database not ready:', error.message || error);
+    }
+
+    // Start polling AFTER db init — never in constructor
+    try {
+      this.bot.startPolling();
       console.log('✅ MyDay Guardian is online');
       console.log('🤖 Bot started. Listening for messages...');
     } catch (error) {
-      // Check if error is a 409 Conflict (polling duplicate)
       if (error.code === 409 || error.message?.includes('409')) {
-        console.error('⚠️ CONFLICT: Another instance of this bot is already running.');
-        console.error('Stopping local instance...');
-        process.exit(1);
+        console.error('⚠️ CONFLICT: Another bot instance is already polling. Bot degraded, Express stays up.');
+        try { this.bot.stopPolling(); } catch (e) {}
+      } else {
+        console.error('⚠️ Telegram polling failed (Express stays up):', error.message || error);
       }
-      // Degrade gracefully: log warning but don't crash, so Express health check still works
-      console.warn('⚠️ Bot started in degraded mode - database not ready:', error.message || error);
     }
   }
 }

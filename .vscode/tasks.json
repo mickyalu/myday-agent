@@ -10,6 +10,66 @@
         "reveal": "always",
         "panel": "new"
       }
+    },
+    {
+      "label": "Research Agent 17",
+      "type": "shell",
+      "command": "bash scripts/research-agent17.sh",
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      }
+    },
+    {
+      "label": "Research Agent 17 Part 2",
+      "type": "shell",
+      "command": "bash scripts/research-agent17-part2.sh",
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      }
+    },
+    {
+      "label": "Research Agent 17 Part 3",
+      "type": "shell",
+      "command": "bash scripts/research-agent17-part3.sh",
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      }
+    },
+    {
+      "label": "Research Agent 17 Part 4",
+      "type": "shell",
+      "command": "bash scripts/research-cmds.sh",
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      }
+    },
+    {
+      "label": "Self.xyz Research",
+      "type": "shell",
+      "command": "bash scripts/selfxyz-research.sh",
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      }
+    },
+    {
+      "label": "Git Push",
+      "type": "shell",
+      "command": "bash scripts/git-push.sh",
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      }
     }
   ]
 }

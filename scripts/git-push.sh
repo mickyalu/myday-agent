@@ -17,7 +17,7 @@ git status
 
 echo ""
 echo "=== Step 4: Commit ==="
-git commit -m "fix: add type field to services + typed endpoints array — badge strike"
+git commit -m "fix: strip non-ASCII chars from manifest — fix base64 decode crash"
 
 echo ""
 echo "=== Step 5: Push to main ==="

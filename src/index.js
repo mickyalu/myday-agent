@@ -59,7 +59,8 @@ app.get('/x402/stake', async (req, res) => {
     return res.status(503).json({ error: 'VAULT_ADDRESS not configured' });
   }
 
-  const paymentHeader = req.headers['x-payment'] || req.headers['X-Payment'];
+  // x402 spec: accept both X-PAYMENT (raw tx hash) and PAYMENT-SIGNATURE (thirdweb signed envelope)
+  const paymentHeader = req.headers['x-payment'] || req.headers['X-Payment'] || req.headers['payment-signature'];
 
   // ── Agent/programmatic flow: X-PAYMENT header present → verify tx ──────
   if (paymentHeader) {
@@ -142,7 +143,7 @@ app.get('/x402/stake', async (req, res) => {
   // Return 402 with both machine-readable headers and human-friendly body
   res.status(402);
   res.set('X-PAYMENT-REQUIRED', JSON.stringify(requirements));
-  res.set('Access-Control-Expose-Headers', 'X-PAYMENT-REQUIRED');
+  res.set('Access-Control-Expose-Headers', 'X-PAYMENT-REQUIRED, X-PAYMENT');
   res.set('Content-Type', 'application/json');
 
   return res.json({

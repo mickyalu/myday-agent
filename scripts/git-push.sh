@@ -38,7 +38,7 @@ git status
 
 echo ""
 echo "=== Step 4: Commit ==="
-git commit -m "fix: match official ERC-8004 spec - type:Agent, endpoints use type/url, wallet endpoint" --allow-empty
+git commit -m "fix: add payment-signature header support (thirdweb x402 compat)" --allow-empty
 
 echo ""
 echo "=== Step 5: Push to main ==="

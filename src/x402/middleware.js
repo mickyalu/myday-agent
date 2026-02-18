@@ -166,7 +166,8 @@ function x402PaymentGate(opts = {}) {
   const { amount = 0.10, description = 'MyDay Guardian x402 protocol fee' } = opts;
 
   return async (req, res, next) => {
-    const paymentHeader = req.headers['x-payment'] || req.headers['X-Payment'];
+    // x402 spec: accept both X-PAYMENT (raw tx hash) and PAYMENT-SIGNATURE (thirdweb signed envelope)
+    const paymentHeader = req.headers['x-payment'] || req.headers['X-Payment'] || req.headers['payment-signature'];
     const vault = process.env.VAULT_ADDRESS || '';
     const rpc = process.env.RPC_URL || 'https://forno.celo.org';
 

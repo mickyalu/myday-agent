@@ -272,6 +272,17 @@ app.get('/health', (req, res) => {
 mountMCPRoutes(app, { db: null }); // db injected later after init
 
 /**
+ * .well-known/agent.json — ERC-8004 Agent Registration File (canonical)
+ */
+app.get('/.well-known/agent.json', (req, res) => {
+  res.set('Cache-Control', 'public, max-age=300');
+  res.set('Content-Type', 'application/json');
+  delete require.cache[require.resolve('../manifests/myday-agent.json')];
+  const manifest = require('../manifests/myday-agent.json');
+  res.json(manifest);
+});
+
+/**
  * .well-known/agent-card.json — OASF Agent Card (with CORS)
  */
 app.get('/.well-known/agent-card.json', (req, res) => {

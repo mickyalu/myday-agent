@@ -22,7 +22,7 @@ git status
 
 echo ""
 echo "=== Step 4: Commit ==="
-git commit -m "fix: services as array + strip angle brackets — badge fix"
+git commit -m "feat: add stdio MCP server + services array + redeploy fix"
 
 echo ""
 echo "=== Step 5: Push to main ==="

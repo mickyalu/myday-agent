@@ -1,0 +1,18 @@
+{
+  "name": "myday-mcp",
+  "version": "2.0.0",
+  "description": "MCP server for MyDay Guardian - Behavioral finance agent on Celo L2 with x402 payment protocol",
+  "main": "index.js",
+  "bin": {
+    "myday-mcp": "./index.js"
+  },
+  "keywords": ["mcp", "claude", "anthropic", "celo", "x402", "behavioral-finance", "habit-staking", "ai-agents", "cursor", "copilot"],
+  "author": "MyDay Finance",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mickyalu/myday-agent"
+  },
+  "homepage": "https://myday-guardian-production.up.railway.app",
+  "engines": { "node": ">=14.0.0" }
+}

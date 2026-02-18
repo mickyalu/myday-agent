@@ -3,7 +3,12 @@ set -e
 cd /workspaces/myday-agent
 
 echo "=== Step 1: Validate manifest JSON ==="
-node -e "const m = require('./manifests/myday-agent.json'); console.log('JSON valid'); console.log('endpoints:', JSON.stringify(m.endpoints)); console.log('services:', Object.keys(m.services)); console.log('size:', JSON.stringify(m).length, 'bytes');"
+node -e "const m = require('./manifests/myday-agent.json'); console.log('JSON valid'); console.log('endpoints:', JSON.stringify(m.endpoints)); console.log('services:', Array.isArray(m.services) ? m.services.map(s=>s.type) : Object.keys(m.services)); console.log('size:', JSON.stringify(m).length, 'bytes');"
+echo "Done."
+
+echo ""
+echo "=== Step 1b: Read on-chain agentURI ==="
+node scripts/read-agent-uri.js
 echo "Done."
 
 echo ""
@@ -17,7 +22,7 @@ git status
 
 echo ""
 echo "=== Step 4: Commit ==="
-git commit -m "fix: strip non-ASCII chars from manifest — fix base64 decode crash"
+git commit -m "diag: add on-chain readback script" --allow-empty
 
 echo ""
 echo "=== Step 5: Push to main ==="

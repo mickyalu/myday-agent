@@ -5,13 +5,13 @@
 {"error":"Agent not found"}
 
 === COMMAND 3: myday-guardian health ===
-{"status":"error","code":502,"message":"Application failed to respond","request_id":"8BMv7MCbSEmyhJA9acI7Nw"}
+{"status":"error","code":502,"message":"Application failed to respond","request_id":"NrQYiAH5SSGwdsTlacI7Nw"}
 
 === COMMAND 4: myday-guardian agent-card.json ===
-{"status":"error","code":502,"message":"Application failed to respond","request_id":"P-icIt2HSNeR-iRZacI7Nw"}
+{"status":"error","code":502,"message":"Application failed to respond","request_id":"iw-WA4fMTOKpr9DxacI7Nw"}
 
 === COMMAND 5: myday-guardian mcp.json ===
-{"status":"error","code":502,"message":"Application failed to respond","request_id":"dmPaN2oITfyti3_6acI7Nw"}
+{"status":"error","code":502,"message":"Application failed to respond","request_id":"dsXcsD-RSM-r4slcacI7Nw"}
 
 === COMMAND 6: selfclaw agent lookup (key2 - our agent) ===
 {"verified":false,"publicKey":"MCowBQYDK2VwAyEAcmSLtdlQk4+3j82t/8ac2LqLVrr20LZya5qkxe19gSM=","message":"Agent not found in registry"}

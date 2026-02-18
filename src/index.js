@@ -534,9 +534,16 @@ async function main() {
       }
     };
 
-    // Mount on both legacy and versioned paths
+    // Mount on both legacy and versioned paths (free — basic data)
     app.get('/api/discipline-score/:telegram_id', disciplineScoreHandler);
     app.get('/api/v1/discipline-score/:telegram_id', disciplineScoreHandler);
+
+    // Premium x402-gated discipline score — full behavioral analytics
+    // Returns 402 with payment requirements if no X-PAYMENT header
+    app.get('/api/v1/discipline-score/:telegram_id/premium',
+      x402PaymentGate({ amount: 0.01, description: 'MyDay Premium Discipline Analytics — full behavioral breakdown' }),
+      disciplineScoreHandler
+    );
 
     // Database configuration (Supabase by default in production)
     const dbConfig = {

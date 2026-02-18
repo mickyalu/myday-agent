@@ -1,4 +1,14 @@
 #!/bin/bash
+echo "=== Extract All Selectors from Reputation Registry ==="
+node /workspaces/myday-agent/scripts/extract-selectors.js
+
+echo ""
+echo "=== Check Railway Status ==="
+curl -s --max-time 10 -o /dev/null -w "Health: %{http_code}\n" https://myday-guardian-production.up.railway.app/health
+curl -s --max-time 10 -o /dev/null -w "Agent.json: %{http_code}\n" https://myday-guardian-production.up.railway.app/.well-known/agent.json
+
+echo ""
+echo "=== DONE ==="
 OUT="/workspaces/myday-agent/data/curl-results.txt"
 rm -f "$OUT"
 

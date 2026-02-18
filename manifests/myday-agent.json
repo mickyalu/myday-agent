@@ -75,6 +75,20 @@
       }
     },
     {
+      "id": "discipline_score_premium",
+      "name": "Premium Discipline Score (x402-gated)",
+      "description": "x402-gated premium behavioral analytics. Returns 402 with payment requirements (0.01 cUSD). After payment, returns full grit score, streak, mood-energy correlation data.",
+      "category": "behavioral_finance",
+      "endpoint": "https://myday-guardian-production.up.railway.app/api/v1/discipline-score/{telegram_id}/premium",
+      "method": "GET",
+      "x402": {
+        "fee": "0.01",
+        "asset": "0x765DE816845861e75A25fCA122bb6898B8B1282a",
+        "network": "eip155:42220",
+        "currency": "cUSD"
+      }
+    },
+    {
       "id": "habit_staking",
       "name": "Habit Staking via x402",
       "description": "x402-gated staking endpoint. Returns HTTP 402 with X-PAYMENT-REQUIRED header containing payment requirements. Client sends cUSD to vault on Celo L2, then retries with X-PAYMENT: <tx_hash> header.",

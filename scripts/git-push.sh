@@ -38,7 +38,7 @@ git status
 
 echo ""
 echo "=== Step 4: Commit ==="
-git commit -m "fix: add payment-signature header support (thirdweb x402 compat)" --allow-empty
+git commit -m "feat: x402-gated premium discipline-score endpoint + manifest update" --allow-empty
 
 echo ""
 echo "=== Step 5: Push to main ==="

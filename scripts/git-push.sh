@@ -3,7 +3,7 @@ set -e
 cd /workspaces/myday-agent
 
 echo "=== Step 1: Validate manifest JSON ==="
-node -e "const m = require('./manifests/myday-agent.json'); console.log('JSON valid'); console.log('endpoints:', JSON.stringify(m.endpoints)); console.log('services:', Array.isArray(m.services) ? m.services.map(s=>s.type) : Object.keys(m.services)); console.log('size:', JSON.stringify(m).length, 'bytes');"
+node -e "const m = require('./manifests/myday-agent.json'); console.log('JSON valid'); console.log('endpoints:', JSON.stringify(m.endpoints)); console.log('services:', Array.isArray(m.services) ? m.services.map(s=>s.name) : 'NOT ARRAY'); console.log('size:', JSON.stringify(m).length, 'bytes');"
 echo "Done."
 
 echo ""
@@ -18,16 +18,12 @@ require('dotenv').config();
   const b64 = uri.replace('data:application/json;base64,', '');
   const j = JSON.parse(Buffer.from(b64, 'base64').toString('utf-8'));
   console.log('URI length:', uri.length);
-  console.log('services type:', typeof j.services);
   console.log('services isArray:', Array.isArray(j.services));
   if (Array.isArray(j.services)) {
-    j.services.forEach((s,i) => console.log('  ['+i+'] type='+s.type+' url='+s.url));
-  } else if (j.services) {
-    console.log('services keys:', Object.keys(j.services));
-    Object.entries(j.services).forEach(([k,v]) => console.log('  '+k+':', v.type, v.url || v.endpoint));
+    j.services.forEach((s,i) => console.log('  ['+i+'] name='+s.name+' endpoint='+s.endpoint));
   }
   console.log('endpoints isArray:', Array.isArray(j.endpoints));
-  if (j.endpoints) j.endpoints.forEach((e,i) => console.log('  ['+i+']', JSON.stringify(e)));
+  if (j.endpoints) j.endpoints.forEach((e,i) => console.log('  ['+i+'] name='+e.name+' endpoint='+e.endpoint));
 })();
 "
 echo "Done."
@@ -43,7 +39,7 @@ git status
 
 echo ""
 echo "=== Step 4: Commit ==="
-git commit -m "diag: focused services decode" --allow-empty
+git commit -m "fix: services use name/endpoint fields for 8004 scanner" --allow-empty
 
 echo ""
 echo "=== Step 5: Push to main ==="

@@ -17,7 +17,7 @@ git status
 
 echo ""
 echo "=== Step 4: Commit ==="
-git commit -m "fix: endpoints as string array (WA006) — re-burn data URI"
+git commit -m "fix: add type field to services + typed endpoints array — badge strike"
 
 echo ""
 echo "=== Step 5: Push to main ==="

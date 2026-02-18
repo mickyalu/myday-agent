@@ -17,7 +17,7 @@ git status
 
 echo ""
 echo "=== Step 4: Commit ==="
-git commit -m "fix(manifest): add endpoints array (WA006) + sovereign data URI (WA040) + harden discipline-score defaults"
+git commit -m "fix: rename x402.endpoints→paths (WA006) + remove validation trust (IA009) — pre data-URI burn"
 
 echo ""
 echo "=== Step 5: Push to main ==="

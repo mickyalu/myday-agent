@@ -30,7 +30,7 @@
     "fee": "0.10",
     "feeCurrency": "cUSD",
     "facilitator": "self-hosted",
-    "endpoints": {
+    "paths": {
       "stake": "/x402/stake",
       "verify": "/x402/verify",
       "requirements": "/x402/requirements"
@@ -45,10 +45,10 @@
     {
       "agentId": "7",
       "agentRegistry": "eip155:42220:0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
-      "supportedTrust": ["reputation", "validation"]
+      "supportedTrust": ["reputation"]
     }
   ],
-  "supportedTrust": ["reputation", "validation"],
+  "supportedTrust": ["reputation"],
   "services": {
     "oasf": {
       "version": "v1",

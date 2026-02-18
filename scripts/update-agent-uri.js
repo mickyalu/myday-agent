@@ -19,6 +19,7 @@ async function updateAgentURI() {
     // Validate environment variables
     const privateKey = process.env.PRIVATE_KEY;
     const rpcUrl = process.env.RPC_URL;
+    const vaultAddress = process.env.VAULT_ADDRESS;
     
     if (!privateKey) {
       console.error('✗ PRIVATE_KEY not found in .env');
@@ -26,6 +27,10 @@ async function updateAgentURI() {
     }
     if (!rpcUrl) {
       console.error('✗ RPC_URL not found in .env');
+      process.exit(1);
+    }
+    if (!vaultAddress) {
+      console.error('✗ VAULT_ADDRESS not found in .env');
       process.exit(1);
     }
     
@@ -56,10 +61,11 @@ async function updateAgentURI() {
     const provider = new ethers.JsonRpcProvider(rpcUrl, chainId);
     const signer = new ethers.Wallet(privateKey, provider);
     
-    // Celo Identity Registry contract (simplified ABI with just setAgentURI)
+    // Celo Identity Registry contract (simplified ABI with setAgentURI and setAgentWallet)
     const IDENTITY_REGISTRY_ADDRESS = '0x8004A169FB4a3325136EB29fA0ceB6D2e539a432';
     const CONTRACT_ABI = [
-      'function setAgentURI(uint256 agentId, string memory uri) public'
+      'function setAgentURI(uint256 agentId, string memory uri) public',
+      'function setAgentWallet(uint256 agentId, address wallet) public'
     ];
     
     const contract = new ethers.Contract(IDENTITY_REGISTRY_ADDRESS, CONTRACT_ABI, signer);
@@ -72,6 +78,20 @@ async function updateAgentURI() {
     const receipt = await tx.wait();
     console.log('✓ Transaction confirmed');
     console.log(`  Block: ${receipt.blockNumber}`);
+
+    // Ray Move: Register vault address on-chain for maximum score
+    // BYPASSED — setAgentWallet requires additional signature data.
+    // Will handle wallet linking via SelfClaw handshake later.
+    // console.log(`\nCalling setAgentWallet(7, ${vaultAddress})...`);
+    // const tx2 = await contract.setAgentWallet(7, vaultAddress);
+    // console.log('✓ setAgentWallet called');
+    // console.log(`  Transaction Hash: ${tx2.hash}`);
+    //
+    // const receipt2 = await tx2.wait();
+    // console.log('✓ setAgentWallet confirmed');
+    // console.log(`  Block: ${receipt2.blockNumber}`);
+
+    console.log('\n✅ setAgentURI is on-chain. setAgentWallet deferred to SelfClaw handshake.');
     
   } catch (error) {
     console.error('Error:', error.message);

@@ -16,7 +16,7 @@ app.use(limiter);
 
 const db = new Database();
 
-const REGISTERED_AGENT_ADDRESS = process.env.REGISTERED_AGENT_ADDRESS || '0x2C7C...9AEB';
+const REGISTERED_AGENT_ADDRESS = process.env.REGISTERED_AGENT_ADDRESS || '0x2C7CE8dc27283beFD939adC894798A52c03A9AEB';
 
 function base64urlDecode(s) {
   return Buffer.from(s, 'base64url').toString('utf8');
@@ -85,9 +85,9 @@ const apiVerifyHandler = async (req, res) => {
       console.error('DB check error:', e);
     }
 
-    const rpc = process.env.RPC_URL || 'https://alfajores-forno.celo-testnet.org';
-    // Pass chainId to skip network auto-detection (Celo testnet = 44787)
-    const chainId = process.env.CHAIN_ID ? parseInt(process.env.CHAIN_ID) : 44787;
+    const rpc = process.env.RPC_URL || 'https://forno.celo.org';
+    // Celo Mainnet — hardcoded, no testnet fallback
+    const chainId = 42220;
     const provider = new ethers.JsonRpcProvider(rpc, chainId);
 
     let tx;

@@ -48,6 +48,9 @@ class MyDayBot {
     
     // Legacy staking state (kept for backwards compatibility)
     this.userStakingState = {};
+
+    // Pending sunset reflections deferred by the scheduler
+    this._pendingSunset = {};
     
     // Bind methods to preserve context
     this.setupHandlers = this.setupHandlers.bind(this);
@@ -76,6 +79,9 @@ class MyDayBot {
 
     // Sunset reflection (8 PM nudge)
     this.bot.onText(/\/sunset|Sunset|🌅/, (msg) => this.handleSunsetReflection(msg));
+
+    // Verify command - SelfClaw Humanity Handshake
+    this.bot.onText(/\/verify/, (msg) => this.handleVerify(msg));
 
     // All message handler - routes to appropriate handler based on context
     this.bot.on('message', (msg) => this.handleAllMessages(msg));
@@ -317,6 +323,29 @@ Verification Status: ${status}`;
     }
   }
 
+  /**
+   * /verify — SelfClaw Humanity Handshake
+   */
+  async handleVerify(msg) {
+    const chatId = msg.chat.id;
+    try {
+      const message = '🛡️ Humanity Verification initiated. Scan the QR code on the next page with your Self App to link your identity to Agent #7.';
+      const keyboard = {
+        reply_markup: {
+          inline_keyboard: [
+            [
+              { text: '🧬 OPEN SELFCLAW', url: 'https://selfclaw.ai/verify?agentId=7' }
+            ]
+          ]
+        }
+      };
+      this.bot.sendMessage(chatId, message, keyboard);
+    } catch (error) {
+      console.error('Error in handleVerify:', error);
+      this.bot.sendMessage(chatId, '⚠️ Could not initiate verification. Please try again.');
+    }
+  }
+
   async handleOnboardingCity(msg, city) {
     const chatId = msg.chat.id;
     const userId = msg.from.id;
@@ -335,7 +364,9 @@ Verification Status: ${status}`;
       await this.promptMissionEnergy(msg);
     } catch (e) {
       console.error('Error in handleOnboardingCity:', e);
-      this.bot.sendMessage(chatId, 'Sorry, something went wrong saving your city/timezone. Try /settimezone to set it manually.');
+      // Recovery: clear stuck state so user can retry
+      delete this.userFlowState[userId];
+      this.bot.sendMessage(chatId, 'Sorry, something went wrong saving your city/timezone. Try /settimezone Your/Timezone or /start to begin again.');
     }
   }
 
@@ -549,7 +580,7 @@ Reply with the number: 1, 2, 3, 4, or 5
       const self = createSelfProtocol({ db: this.db, railwayUrl: process.env.RAILWAY_URL });
       const verified = await self.isVerified(userId);
       if (!verified) {
-        const link = 'https://selfclaw.app/?agentId=7';
+        const link = 'https://selfclaw.ai/verify?agentId=7';
         const msgText = '🛡️ Humanity Attestation Required. To keep our Tribe bot-free, please verify your identity once via SelfClaw.';
         const keyboard = {
           reply_markup: {
@@ -656,6 +687,14 @@ Let's make today count! 💎
       `.trim();
 
       this.bot.sendMessage(chatId, confirmation, { parse_mode: 'Markdown' });
+
+      // Flush any deferred sunset reflection that was queued during onboarding/staking
+      if (this._pendingSunset && this._pendingSunset[userId]) {
+        delete this._pendingSunset[userId];
+        setTimeout(() => {
+          this.handleSunsetReflection(msg);
+        }, 3000); // 3-second delay so the CTA stays visible
+      }
 
     } catch (error) {
       console.error('Error in handleMissionBriefingConfirm:', error);
@@ -901,6 +940,73 @@ Reply with: 1, 2, 3, 4, or 5
   }
 
   /**
+   * Behavioral Pivoting: Adjust coaching tone based on user trajectory.
+   * Compares morning energy vs sunset mood and weekly trend to decide
+   * whether to encourage, celebrate, or gently pivot.
+   */
+  _pivotTone(morningEnergy, sunsetMood, winsCount, totalMissions, weeklyData) {
+    const completionRate = totalMissions > 0 ? winsCount / totalMissions : 0;
+    const moodDelta = sunsetMood - morningEnergy;
+
+    // Detect pattern from weekly data (if available)
+    let weeklyTrend = 'stable';
+    if (weeklyData && weeklyData.length >= 3) {
+      const recentMoods = weeklyData.slice(-3).map(d => Number(d.sunset_mood || d.morning_energy || 3));
+      const avg = recentMoods.reduce((a, b) => a + b, 0) / recentMoods.length;
+      if (avg < 2.5) weeklyTrend = 'declining';
+      else if (avg > 3.5) weeklyTrend = 'rising';
+    }
+
+    // ---- Pivoting Logic ----
+    // Case 1: High energy morning but low evening = user is burning out
+    if (morningEnergy >= 4 && sunsetMood <= 2) {
+      return {
+        tone: 'gentle-pivot',
+        message: `⚡ You started strong but the day was heavy. That happens to the best. Tomorrow, try smaller missions so the wins stack up. Protect your energy.`,
+        weeklyTrend
+      };
+    }
+    // Case 2: Low energy morning but high evening = unexpected win
+    if (morningEnergy <= 2 && sunsetMood >= 4) {
+      return {
+        tone: 'celebrate',
+        message: `🏆 You defied the odds! Started low and finished HIGH. That's the compound discipline effect. This is what separates builders from dreamers.`,
+        weeklyTrend
+      };
+    }
+    // Case 3: Declining weekly trend
+    if (weeklyTrend === 'declining') {
+      return {
+        tone: 'compassionate-redirect',
+        message: `💙 I've noticed your energy has been dipping this week. That's not failure — it's a signal. Let's recalibrate tomorrow: fewer missions, deeper focus. Quality over quantity.`,
+        weeklyTrend
+      };
+    }
+    // Case 4: Rising weekly trend
+    if (weeklyTrend === 'rising') {
+      return {
+        tone: 'momentum',
+        message: `🔥 Your trajectory is CLIMBING. The data shows discipline is fueling your happiness. Keep this streak alive — you're in elite territory.`,
+        weeklyTrend
+      };
+    }
+    // Case 5: Good completion rate
+    if (completionRate >= 0.8 && moodDelta >= 0) {
+      return {
+        tone: 'reinforce',
+        message: `💎 Crushed it. ${winsCount}/${totalMissions} missions complete and your mood held strong. This is exactly how wealth of discipline is built.`,
+        weeklyTrend
+      };
+    }
+    // Default: Balanced
+    return {
+      tone: 'balanced',
+      message: `✅ Solid day. ${winsCount}/${totalMissions} missions logged. Every rep counts. See you tomorrow for the next round.`,
+      weeklyTrend
+    };
+  }
+
+  /**
    * Sunset Reflection - Capture mood & store correlation
    */
   async handleSunsetMoodInput(msg, mood) {
@@ -926,6 +1032,9 @@ Reply with: 1, 2, 3, 4, or 5
       // Get weekly data for analysis hint
       const weeklyData = await this.db.getWeeklyMoodEnergyData(userId);
 
+      // Behavioral Pivoting: choose tone based on trajectory
+      const pivot = this._pivotTone(morningEnergy, mood, winsCount, totalMissions, weeklyData);
+
       const moodDelta = mood - morningEnergy;
       const deltaMessage = moodDelta > 0 
         ? `📈 Your mood climbed ${moodDelta} points from this morning!`
@@ -943,8 +1052,8 @@ Reply with: 1, 2, 3, 4, or 5
 
 ${deltaMessage}
 
-💡 *The Pattern Emerges:*
-Your **Discipline-to-Happiness** ratio is forming. Over 7 days, we'll see how your wins fuel your mood.
+💡 *${pivot.tone === 'gentle-pivot' ? 'Real Talk' : pivot.tone === 'celebrate' ? 'Legendary Move' : pivot.tone === 'compassionate-redirect' ? 'Recalibration' : pivot.tone === 'momentum' ? 'Momentum Alert' : 'The Pattern Emerges'}:*
+${pivot.message}
 
 Rest well tonight. Tomorrow's momentum starts now. 🌙
       `.trim();
@@ -976,8 +1085,8 @@ Rest well tonight. Tomorrow's momentum starts now. 🌙
         console.error('Stopping local instance...');
         process.exit(1);
       }
-      console.error('❌ Failed to start bot - database not ready:', error);
-      process.exit(1);
+      // Degrade gracefully: log warning but don't crash, so Express health check still works
+      console.warn('⚠️ Bot started in degraded mode - database not ready:', error.message || error);
     }
   }
 }

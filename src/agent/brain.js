@@ -255,7 +255,7 @@ Be warm, data-backed, and human.
       console.error('Error in generateWeeklySummary:', error);
       return `${userName}, your week shows that discipline fuels mood. ${correlation.insight} Keep going! 💎`;
     }
-  }}
+  }
 
   /**
    * Map a city name to an IANA timezone string or UTC offset fallback.
@@ -293,5 +293,6 @@ Be warm, data-backed, and human.
 
     return null;
   }
+}
 
 module.exports = MyDayIntel;

@@ -25,7 +25,7 @@ async function registerAgent() {
     }
 
     // Initialize provider and signer (with chainId to skip network auto-detection)
-    const chainId = process.env.CHAIN_ID ? parseInt(process.env.CHAIN_ID) : 44787;
+    const chainId = process.env.CHAIN_ID ? parseInt(process.env.CHAIN_ID) : 42220;
     const provider = new ethers.JsonRpcProvider(process.env.RPC_URL, chainId);
     const signer = new ethers.Wallet(process.env.PRIVATE_KEY, provider);
 
@@ -42,7 +42,7 @@ async function registerAgent() {
     console.log('- Name:', manifest.name);
     console.log('- Description:', manifest.description);
     console.log('- Image:', manifest.image);
-    console.log('- Skills:', manifest.skills.join(', '));
+    console.log('- Skills:', (manifest.skills || []).join(', ') || '(none)');
 
     // Create Base64 Data URI (data:application/json;base64,...)
     const manifestBuffer = Buffer.from(manifestData, 'utf-8');

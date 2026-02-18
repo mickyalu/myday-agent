@@ -4,3 +4,7 @@ node_modules
 
 #.env should not be committed
 .env
+
+# SelfClaw private keys & sessions
+data/selfclaw-keys.json
+data/selfclaw-session.json

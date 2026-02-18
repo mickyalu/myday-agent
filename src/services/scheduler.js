@@ -1,13 +1,27 @@
 const cron = require('node-cron');
 
-// Helper to get user's local hour and minute using Intl
+// Helper to get user's local hour and minute using Intl.DateTimeFormat
 function getLocalTimeParts(timezone) {
   try {
     const now = new Date();
-    const parts = now.toLocaleString('en-GB', { timeZone: timezone, hour12: false });
-    // parts like '11/02/2026, 20:05:00' or '11/02/2026, 20:05'
-    const time = new Date(parts);
-    return { hour: time.getHours(), minute: time.getMinutes(), day: time.getDay() };
+    const fmt = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone,
+      hour: 'numeric',
+      minute: 'numeric',
+      hour12: false,
+      weekday: 'short'
+    });
+    const parts = {};
+    for (const { type, value } of fmt.formatToParts(now)) {
+      if (type === 'hour') parts.hour = parseInt(value, 10);
+      if (type === 'minute') parts.minute = parseInt(value, 10);
+      if (type === 'weekday') {
+        const dayMap = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+        parts.day = dayMap[value] ?? new Date().getDay();
+      }
+    }
+    if (typeof parts.hour !== 'number') return null;
+    return parts;
   } catch (e) {
     return null;
   }
@@ -44,9 +58,28 @@ module.exports = function initScheduler({ db, bot }) {
         }
 
         // Sunset 20:00 - trigger Sunset Reflection flow (calls bot handler)
+        // STATE GUARD: Skip if user is mid-onboarding or mid-staking to avoid stealing CTA focus
         if (t.hour === 20 && t.minute === 0) {
           const key = keyBase + ':sunset';
           if (lastTriggered[key] === new Date().toDateString()) continue;
+
+          // Check if user is in an active flow that should not be interrupted
+          const activeFlow = bot.userFlowState ? bot.userFlowState[u.telegram_id] : null;
+          const blockingStates = [
+            'onboarding_city',
+            'mission_briefing_energy',
+            'mission_briefing_goals',
+            'mission_briefing_stake',
+            'mission_briefing_confirm'
+          ];
+          if (activeFlow && blockingStates.includes(activeFlow)) {
+            // Queue: mark as pending so we can send it once the flow completes
+            if (!bot._pendingSunset) bot._pendingSunset = {};
+            bot._pendingSunset[u.telegram_id] = true;
+            console.log(`Scheduler: Sunset deferred for user ${u.telegram_id} (active flow: ${activeFlow})`);
+            continue;
+          }
+
           lastTriggered[key] = new Date().toDateString();
           try {
             const fakeMsg = { chat: { id: u.telegram_id }, from: { id: u.telegram_id, first_name: u.name || '' }, text: '/sunset' };

@@ -25,8 +25,8 @@ class BlockchainExecutor {
    */
   async initialize() {
     try {
-      // Pass chainId to skip network auto-detection (Celo testnet = 44787)
-      const chainId = process.env.CHAIN_ID ? parseInt(process.env.CHAIN_ID) : 44787;
+      // Celo Mainnet — hardcoded, no testnet fallback
+      const chainId = 42220;
       this.provider = new ethers.JsonRpcProvider(this.rpcUrl, chainId);
       this.signer = new ethers.Wallet(this.privateKey, this.provider);
 

@@ -26,8 +26,8 @@ module.exports = function createSelfProtocol({ db, railwayUrl }) {
     },
 
     getVerificationLink(telegramUserId) {
-      const base = railwayUrl || process.env.RAILWAY_URL || 'https://myday-guardian-production.up.railway.app';
-      return `${base}/verify/selfclaw?user=${encodeURIComponent(String(telegramUserId))}`;
+      // Direct link to SelfClaw verification page — not our Railway app
+      return `https://selfclaw.ai/verify?agentId=7&user=${encodeURIComponent(String(telegramUserId))}`;
     }
   };
 };

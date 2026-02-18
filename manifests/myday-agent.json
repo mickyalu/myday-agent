@@ -1,23 +1,109 @@
 {
   "name": "MyDay Guardian",
-  "description": "Autonomous Behavioral Finance Agent for discipline staking and yield harvesting.",
+  "description": "Autonomous Behavioral Finance Agent for discipline staking and yield harvesting on Celo L2.",
+  "agentId": 7,
+  "chains": [42220],
   "image": "https://raw.githubusercontent.com/mickyalu/myday-agent/main/src/logo.png",
-  "skills": [
-    "behavioral_finance/habit_staking",
-    "behavioral_finance/yield_optimization",
-    "identity/humanity_attestation",
-    "social/tribal_verification"
-  ],
   "version": "1.0.0",
   "type": "behavioral-finance",
   "author": "MyDay Finance",
   "license": "MIT",
+  "website": "https://myday-guardian-production.up.railway.app",
+  "url": "https://myday-guardian-production.up.railway.app",
+  "schema_version": "1.0",
+  "provider": { "name": "MyDay Finance" },
+  "supportsX402": true,
+  "skills": [
+    {
+      "id": "discipline-score",
+      "name": "Discipline Score",
+      "description": "Returns grit score, streak, emotional stability index from behavioral data."
+    },
+    {
+      "id": "behavioral-oracle",
+      "name": "Behavioral Oracle",
+      "description": "Mood-energy correlation engine with weekly trend analysis."
+    },
+    {
+      "id": "sunset-reflection",
+      "name": "Sunset Reflection",
+      "description": "Evening self-audit capturing wins and mood delta."
+    },
+    {
+      "id": "habit-staking",
+      "name": "Habit Staking",
+      "description": "Generates celo:// deep links for staking cUSD with x402 protocol fee."
+    },
+    {
+      "id": "humanity-attestation",
+      "name": "Humanity Attestation",
+      "description": "SelfClaw passport-NFC verification via Self.xyz protocol."
+    }
+  ],
+  "tools": [
+    {
+      "id": "discipline_score",
+      "name": "Get Discipline Score",
+      "description": "Returns the user's grit score (0-100), streak, emotional stability index, and staking data.",
+      "category": "behavioral_finance",
+      "endpoint": "https://myday-guardian-production.up.railway.app/api/v1/discipline-score/{telegram_id}",
+      "method": "GET",
+      "parameters": {
+        "telegram_id": { "type": "integer", "required": true, "description": "Telegram user ID" }
+      },
+      "returns": {
+        "grit_score": "integer (0-100)",
+        "streak": "integer",
+        "emotional_stability_index": "integer (0-100)",
+        "status": "string (Elite|Stable|Warning)",
+        "avg_morning_energy": "number",
+        "avg_sunset_mood": "number",
+        "total_staked_cUSD": "number"
+      }
+    },
+    {
+      "id": "habit_staking",
+      "name": "Habit Staking via Deep Link",
+      "description": "Generates a celo:// deep link for the user to stake cUSD into the MyDay vault. Includes $0.10 x402 protocol fee.",
+      "category": "behavioral_finance",
+      "endpoint": "https://myday-guardian-production.up.railway.app/pay",
+      "method": "GET",
+      "parameters": {
+        "amount": { "type": "string", "required": true, "description": "cUSD amount to stake (x402 fee of 0.10 cUSD added automatically)" },
+        "user": { "type": "string", "required": false, "description": "Telegram user ID for follow-up notification" }
+      },
+      "x402": {
+        "fee": "0.10",
+        "currency": "cUSD",
+        "description": "x402 protocol fee added to every staking transaction"
+      }
+    },
+    {
+      "id": "humanity_attestation",
+      "name": "Verify Humanity (SelfClaw)",
+      "description": "Triggers a SelfClaw humanity attestation handshake for the given user.",
+      "category": "identity",
+      "endpoint": "https://myday-guardian-production.up.railway.app/api/verify",
+      "method": "POST",
+      "parameters": {
+        "telegramId": { "type": "integer", "required": true, "description": "Telegram user ID to verify" }
+      }
+    },
+    {
+      "id": "agent_metadata",
+      "name": "Agent Metadata",
+      "description": "Returns MyDay Guardian agent metadata, capabilities, and available endpoints.",
+      "category": "discovery",
+      "endpoint": "https://myday-guardian-production.up.railway.app/api/v1/agent",
+      "method": "GET"
+    }
+  ],
   "services": {
-    "oaf_api": {
-      "type": "oaf",
-      "endpoint": "https://myday-guardian-production.up.railway.app",
-      "protocol": "https",
-      "oaf_map": true
+    "oasf": {
+      "type": "oasf",
+      "endpoint": "https://myday-guardian-production.up.railway.app/api/v1/discipline-score",
+      "discovery": "https://myday-guardian-production.up.railway.app/.well-known/agent-card.json",
+      "protocol": "https"
     },
     "telegram": {
       "type": "messaging",

@@ -16,7 +16,7 @@ app.use(limiter);
 
 const db = new Database();
 
-const REGISTERED_AGENT_ADDRESS = process.env.REGISTERED_AGENT_ADDRESS || '0x2C7C...9AEB';
+const REGISTERED_AGENT_ADDRESS = process.env.REGISTERED_AGENT_ADDRESS || '0x2C7CE8dc27283beFD939adC894798A52c03A9AEB';
 
 function base64urlDecode(s) {
   // Node's base64url decode via Buffer
@@ -65,15 +65,17 @@ app.post('/verify', async (req, res) => {
   }
 });
 
-/**
- * Webhook: MiniPay /api/verify
-const { app, db } = require('./app');
+// Import the full app (which includes /api/verify webhook handler)
+const { app: fullApp, db: fullDb, apiVerifyHandler } = require('./app');
 
 const port = process.env.VERIFIER_PORT || 4000;
-app.listen(port, async () => {
-  await db.waitReady().catch(()=>{});
-  console.log(`Verifier listening on port ${port}`);
-});
+
+// Only start standalone server if run directly (not imported)
+if (require.main === module) {
+  app.listen(port, async () => {
+    await db.waitReady().catch(() => {});
+    console.log(`Verifier listening on port ${port}`);
+  });
+}
 
 module.exports = app;
-    const { tx_hash, telegramUserId, amount = 0, currency = 'cUSD' } = req.body;

@@ -7,8 +7,8 @@ node -e "const m = require('./manifests/myday-agent.json'); console.log('JSON va
 echo "Done."
 
 echo ""
-echo "=== Step 1b: Probe contract ABI ==="
-node scripts/probe-contract.js
+echo "=== Step 1b: Decode on-chain tokenURI ==="
+node scripts/decode-onchain.js
 echo "Done."
 
 echo ""
@@ -22,7 +22,7 @@ git status
 
 echo ""
 echo "=== Step 4: Commit ==="
-git commit -m "diag: probe contract ABI" --allow-empty
+git commit -m "diag: decode on-chain tokenURI" --allow-empty
 
 echo ""
 echo "=== Step 5: Push to main ==="

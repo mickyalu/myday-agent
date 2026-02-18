@@ -17,7 +17,7 @@ git status
 
 echo ""
 echo "=== Step 4: Commit ==="
-git commit -m "fix: rename x402.endpoints→paths (WA006) + remove validation trust (IA009) — pre data-URI burn"
+git commit -m "fix: endpoints as string array (WA006) — re-burn data URI"
 
 echo ""
 echo "=== Step 5: Push to main ==="
